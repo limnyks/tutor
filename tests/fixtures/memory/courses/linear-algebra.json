@@ -1,0 +1,140 @@
+{
+  "slug": "linear-algebra",
+  "code": "MATH252",
+  "name": "Applied Linear Algebra / Прикладна лінійна алгебра",
+  "moodle_id": 4219,
+  "credits": 4,
+  "mode": "tutor",
+  "ai_policy": "AI allowed for learning only. FORBIDDEN when directly solving or writing up homework and tests (grade cancelled). Never work on the actual homework problems — use different problems. Labs: code written without ready-made fragments.",
+  "assessment": [
+    "Quizzes: 8 x 2 points, weekly at the start of the first practice of the week (Group 2 dates on Moodle)",
+    "Homework: 4 x 6 points, handwritten, one PDF; one late day; early submission 3 days before gets preliminary feedback",
+    "Labs: 3 x 12 (6 code, 4 defense, 2 theory); no defense = max 50%",
+    "Final test: 30 (one handwritten one-sided A4 cheat sheet, definitions/formulas only)",
+    "Grading: full reasoning required; correct answer without reasoning = 25%"
+  ],
+  "notes": "The student's group runs on different dates than the syllabus; always take dates from Moodle. Books: Olver & Shakiban 'Applied Linear Algebra', Strang, Axler, Liesen & Mehrmann.",
+  "topics": [
+    {
+      "id": "sle",
+      "title": "Systems of linear equations, Gaussian elimination, determinants (recap)",
+      "week": 1,
+      "keywords": [
+        "gaussian elimination",
+        "determinant"
+      ]
+    },
+    {
+      "id": "lu",
+      "title": "Elementary matrices, LU decomposition and solving systems with it",
+      "week": 1,
+      "keywords": [
+        "lu",
+        "elementary matrices"
+      ]
+    },
+    {
+      "id": "vector-spaces",
+      "title": "Arithmetic vector space, subspaces, linear (in)dependence",
+      "week": 2,
+      "keywords": [
+        "subspace",
+        "linear independence",
+        "span"
+      ]
+    },
+    {
+      "id": "basis-rank",
+      "title": "Bases, dimension, matrix rank",
+      "week": 2,
+      "keywords": [
+        "basis",
+        "dimension",
+        "rank"
+      ]
+    },
+    {
+      "id": "linear-operators",
+      "title": "Linear operators, matrix of an operator, kernel, range, four fundamental subspaces",
+      "week": 3,
+      "keywords": [
+        "linear mapping",
+        "kernel",
+        "image",
+        "fundamental subspaces"
+      ]
+    },
+    {
+      "id": "eigen",
+      "title": "Eigenvalues and eigenvectors",
+      "week": 3,
+      "keywords": [
+        "eigenvalues",
+        "eigenvectors"
+      ]
+    },
+    {
+      "id": "diagonalization",
+      "title": "Diagonalization of a square matrix and its applications",
+      "week": 4,
+      "keywords": [
+        "diagonalization",
+        "matrix powers"
+      ]
+    },
+    {
+      "id": "inner-products",
+      "title": "Inner products, inner product spaces, orthogonal and orthonormal vectors",
+      "week": 4,
+      "keywords": [
+        "inner product",
+        "orthogonal",
+        "orthonormal"
+      ]
+    },
+    {
+      "id": "projections",
+      "title": "Orthogonal projections, Fundamental Theorem of Linear Algebra",
+      "week": 5,
+      "keywords": [
+        "projection"
+      ]
+    },
+    {
+      "id": "gram-schmidt",
+      "title": "Gram–Schmidt orthogonalization",
+      "week": 5,
+      "keywords": [
+        "gram schmidt"
+      ]
+    },
+    {
+      "id": "qr-least-squares",
+      "title": "QR decomposition and the least squares method",
+      "week": 6,
+      "keywords": [
+        "qr",
+        "least squares"
+      ]
+    },
+    {
+      "id": "symmetric-quadratic",
+      "title": "Symmetric matrices, spectral theorem, quadratic forms and definiteness",
+      "week": 6,
+      "keywords": [
+        "spectral theorem",
+        "quadratic form",
+        "positive definite"
+      ]
+    },
+    {
+      "id": "svd",
+      "title": "Singular value decomposition (SVD) and its applications",
+      "week": 7,
+      "keywords": [
+        "svd",
+        "singular values"
+      ]
+    }
+  ]
+}

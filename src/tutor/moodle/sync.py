@@ -338,6 +338,10 @@ def run_sync(cfg: Config, *, download: bool = True, full_files: bool | None = No
         events = diff_snapshots(old, snap) + file_events
         write_json(cfg.snapshot_path, snap)
         append_events(cfg, events)
+        if cfg.state_dir and (cfg.state_dir / "courses").exists():
+            from ..memory.gitsync import publish_snapshot, sync as memory_sync
+            publish_snapshot(snap, cfg.state_dir)
+            log(f"Memory: {memory_sync(cfg.state_dir, 'moodle: sync')}")
         summary = {
             "courses": len(snap["courses"]),
             "activities": len(snap["activities"]),

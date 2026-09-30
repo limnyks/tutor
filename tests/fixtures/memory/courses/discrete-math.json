@@ -1,0 +1,154 @@
+{
+  "slug": "discrete-math",
+  "code": "MATH115",
+  "name": "Discrete Mathematics / Дискретна математика",
+  "moodle_id": 4197,
+  "credits": 6,
+  "mode": "tutor",
+  "ai_policy": "AI allowed as a trainer for definitions and theory. Not for graded homework, quizzes or tests. Warn: check AI math manually.",
+  "assessment": [
+    "Quizzes: 6 x 6 points, UNANNOUNCED, ~every two weeks, 15 min, true/false per task — each week's lecture must be learned before practice",
+    "Graded homework: 2 x 3 points before each midterm; missed deadline = 0",
+    "Test 1 (week 6): 20; Test 2 (week 10): 20; Final (week 15): 30",
+    "Grading: full reasoning required; correct answer without justification = 25%",
+    "Pre-recorded lectures (flipped): watch before the week's practices; problems levels A/B/C"
+  ],
+  "notes": "Hard for the student and the largest course (6 credits). Books: Rosen 'Discrete Mathematics and its Applications', Richmond & Richmond, Bickle 'Fundamentals of Graph Theory', Боднарчук & Олійник.",
+  "topics": [
+    {
+      "id": "propositional-logic",
+      "title": "Propositional logic: formulas, interpretations, connectives, truth tables",
+      "week": 1,
+      "keywords": [
+        "truth tables",
+        "logical connectives"
+      ]
+    },
+    {
+      "id": "predicate-logic",
+      "title": "Predicate logic: quantifiers, free and bound variables, equivalences",
+      "week": 2,
+      "keywords": [
+        "quantifiers",
+        "predicates"
+      ]
+    },
+    {
+      "id": "induction",
+      "title": "Mathematical induction and proofs",
+      "week": 2,
+      "keywords": [
+        "induction",
+        "proof"
+      ]
+    },
+    {
+      "id": "sets",
+      "title": "Naive set theory, set operations, inclusion proofs",
+      "week": 3,
+      "keywords": [
+        "set operations",
+        "inclusion"
+      ]
+    },
+    {
+      "id": "generalized-ops",
+      "title": "Generalized union and intersection",
+      "week": 4,
+      "keywords": [
+        "generalized union",
+        "generalized intersection"
+      ]
+    },
+    {
+      "id": "powerset-product",
+      "title": "Powerset and Cartesian product",
+      "week": 5,
+      "keywords": [
+        "powerset",
+        "cartesian product"
+      ]
+    },
+    {
+      "id": "relations",
+      "title": "Binary relations: diagonal, inverse, composition; the six main properties",
+      "week": 7,
+      "keywords": [
+        "relations",
+        "reflexive",
+        "symmetric",
+        "transitive"
+      ]
+    },
+    {
+      "id": "equivalence",
+      "title": "Equivalence relations and set partitions",
+      "week": 8,
+      "keywords": [
+        "equivalence relation",
+        "partition"
+      ]
+    },
+    {
+      "id": "posets",
+      "title": "Partially ordered sets: Hasse diagrams, cones, maximal and minimal elements",
+      "week": 9,
+      "keywords": [
+        "hasse",
+        "poset",
+        "partial order"
+      ]
+    },
+    {
+      "id": "functions",
+      "title": "Functional relations, images and preimages, composition",
+      "week": 11,
+      "keywords": [
+        "image",
+        "preimage",
+        "composition"
+      ]
+    },
+    {
+      "id": "bijections",
+      "title": "Injections, surjections, bijections, inverse functions",
+      "week": 11,
+      "keywords": [
+        "injection",
+        "surjection",
+        "bijection"
+      ]
+    },
+    {
+      "id": "boolean",
+      "title": "Boolean functions, DNF, CNF, perfect normal forms",
+      "week": 12,
+      "keywords": [
+        "dnf",
+        "cnf",
+        "boolean functions"
+      ]
+    },
+    {
+      "id": "graphs",
+      "title": "Graph basics: handshaking lemma, paths and cycles, trees, bipartite graphs, adjacency matrix",
+      "week": 13,
+      "keywords": [
+        "graph",
+        "trees",
+        "bipartite",
+        "handshaking"
+      ]
+    },
+    {
+      "id": "graph-connectivity-coloring",
+      "title": "Walks, connectivity, reachability; coloring, chromatic, clique and independence numbers",
+      "week": 14,
+      "keywords": [
+        "coloring",
+        "chromatic number",
+        "connectivity"
+      ]
+    }
+  ]
+}

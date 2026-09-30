@@ -1,0 +1,54 @@
+{
+  "slug": "computer-architecture",
+  "code": "CS240",
+  "name": "Computer Architecture / Комп'ютерна архітектура",
+  "moodle_id": 4218,
+  "credits": 5,
+  "mode": "tutor",
+  "ai_policy": "AI use must be disclosed in practice reports where it had an impact (e.g. code generation).",
+  "assessment": [
+    "Practical works with reports (Quartus, FPGA board); exact weights not recorded yet — see Moodle"
+  ],
+  "notes": "Syllabus not provided; topics so far from the practice files. Extend from Moodle sections as the course goes on.",
+  "topics": [
+    {
+      "id": "digital-basics",
+      "title": "Number systems, logic gates, Boolean algebra basics",
+      "week": 1,
+      "keywords": [
+        "logic gates",
+        "number systems"
+      ]
+    },
+    {
+      "id": "combinational",
+      "title": "Combinational circuits: half/full adders, multiplexers, encoders, decoders, ripple-carry adder",
+      "week": 2,
+      "keywords": [
+        "adder",
+        "multiplexer",
+        "decoder"
+      ]
+    },
+    {
+      "id": "kmaps",
+      "title": "Sum of products, Karnaugh map minimization",
+      "week": 2,
+      "keywords": [
+        "karnaugh",
+        "sop",
+        "minterms"
+      ]
+    },
+    {
+      "id": "hdl-fpga",
+      "title": "Quartus projects, Verilog basics, FPGA programming, 7-segment display",
+      "week": 2,
+      "keywords": [
+        "verilog",
+        "quartus",
+        "fpga"
+      ]
+    }
+  ]
+}

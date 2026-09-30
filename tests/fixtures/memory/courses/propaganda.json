@@ -1,0 +1,18 @@
+{
+  "slug": "propaganda",
+  "code": "SCI400",
+  "name": "Techniques of Propaganda and Counterpropaganda / Засоби пропаганди та контрпропаганди",
+  "moodle_id": 4410,
+  "credits": 3,
+  "mode": "deadlines",
+  "ai_policy": "Final exam written in Google Docs only (AI misuse control).",
+  "assessment": [
+    "Seminars: 7 x 7 points, best 35 count; participation mandatory",
+    "Mid-term group project (3-5 people): 25",
+    "Online Moodle test (week 9, 15 min, proctored): 20",
+    "Final take-home exam: 20 — SKIPPED with full 20 points if the student has 71+ points before it",
+    "Late: -25% per day"
+  ],
+  "notes": "Not tutored. Track points toward the 71-point exemption and the deadlines.",
+  "topics": []
+}

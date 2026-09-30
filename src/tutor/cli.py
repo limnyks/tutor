@@ -205,6 +205,61 @@ def cmd_mcp(args) -> int:
     return 0
 
 
+def cmd_memory_init(args) -> int:
+    """Point the tutor at a clone of the tutor-memory repo and publish Moodle data into it."""
+    from pathlib import Path
+
+    from .memory.gitsync import publish_snapshot, sync
+    from .moodle.config import config_path
+
+    target = Path(args.path).expanduser().resolve()
+    if not (target / "courses").is_dir():
+        print(f"{target} is not a tutor-memory checkout (no courses/ folder).\n"
+              f"Clone it first: git clone https://github.com/limnyks/tutor-memory {target}")
+        return 1
+    path = config_path()
+    raw = json.loads(path.read_text()) if path.exists() else {}
+    raw["state_dir"] = str(target)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(raw, ensure_ascii=False, indent=2) + "\n")
+    cfg = load_config()
+    snap = read_json(cfg.snapshot_path, None)
+    if snap:
+        publish_snapshot(snap, target)
+    print(f"Memory: {target}")
+    print(f"Sync: {sync(target, 'tutor: set up memory')}")
+    print("Start a study session with:  cd ~/tutor-memory && claude")
+    return 0
+
+
+def cmd_briefing(args) -> int:
+    from .memory.briefing import build_briefing
+
+    print(build_briefing(load_config()))
+    return 0
+
+
+def cmd_memory_sync(args) -> int:
+    from .memory.gitsync import sync
+
+    cfg = load_config()
+    if cfg.state_dir is None:
+        if not args.quiet:
+            print("Memory is not set up (run: tutor memory-init).")
+        return 0 if args.quiet else 1
+    outcome = sync(cfg.state_dir, "tutor: session")
+    if not args.quiet or "failed" in outcome:
+        print(f"Memory: {outcome}")
+    return 0
+
+
+def cmd_tutor_mcp(args) -> int:
+    from .mcp_server import main as mcp_main
+
+    mcp_main()
+    return 0
+
+
 def cmd_config(args) -> int:
     cfg = load_config()
     print(f"Config file: {config_path()}{'' if config_path().exists() else ' (not created; using defaults)'}")
@@ -234,6 +289,15 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_schedule)
     sub.add_parser("moodle-mcp", help="run the Moodle connector (MCP, stdio)").set_defaults(func=cmd_mcp)
     sub.add_parser("config", help="show configuration").set_defaults(func=cmd_config)
+    p = sub.add_parser("memory-init", help="use a tutor-memory checkout as the tutor's memory")
+    p.add_argument("path", nargs="?", default="~/tutor-memory")
+    p.set_defaults(func=cmd_memory_init)
+    sub.add_parser("briefing", help="print today's briefing").set_defaults(func=cmd_briefing)
+    p = sub.add_parser("memory-sync", help="commit memory and sync it with GitHub")
+    p.add_argument("--quiet", action="store_true")
+    p.set_defaults(func=cmd_memory_sync)
+    sub.add_parser("mcp", help="run the tutor connector (Moodle + memory tools, MCP stdio)").set_defaults(
+        func=cmd_tutor_mcp)
 
     args = parser.parse_args(argv)
     try:

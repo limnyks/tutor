@@ -408,3 +408,20 @@ def test_changing_files_dir_downloads_into_the_new_folder(cfg):
     assert (cfg.files_dir / "STAT2100 Probability for CS" / "Week 1. Sample spaces" / "Lecture1.pdf").exists()
     paths = [v["path"] for v in read_json(cfg.manifest_path, {}).values() if v.get("path")]
     assert paths and all(p.startswith(str(cfg.files_dir)) for p in paths)
+
+
+def test_sync_publishes_to_memory_repo_and_commits(cfg, tmp_path):
+    import shutil
+    import subprocess
+    memory = tmp_path / "tutor-memory"
+    subprocess.run(["git", "init", "-q", str(memory)], check=True)
+    shutil.copytree(Path(__file__).parent / "fixtures" / "memory" / "courses", memory / "courses")
+    cfg.state_dir = memory
+    logged = []
+    run_sync(cfg, log=logged.append, session_cls=FakeSession)
+    published = json.loads((memory / "moodle" / "snapshot.json").read_text())
+    assert "description" not in published["assignments"]["903"]          # conditions never leave the Mac
+    assert list((memory / "events").glob("*.mac-moodle.jsonl"))           # Moodle changes in the log
+    assert any(line.startswith("Memory: committed locally") for line in logged)
+    status = subprocess.run(["git", "-C", str(memory), "status", "--porcelain"], capture_output=True, text=True)
+    assert status.stdout == ""

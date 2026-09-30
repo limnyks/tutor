@@ -1,0 +1,149 @@
+{
+  "slug": "probability",
+  "code": "STAT2100",
+  "name": "Probability for Computer Science / Імовірність для комп'ютерних наук",
+  "moodle_id": 4442,
+  "credits": 4,
+  "mode": "tutor",
+  "ai_policy": "AI allowed like any online source, but any use for homework must be cited. Homework is defended in person: the student must be able to explain every step.",
+  "assessment": [
+    "HW 1-4: 10 points each, due weeks 5, 8, 11, 14; up to 5 days late at -10%/day; defended in person",
+    "Midterm (week 8, written, one handwritten A4 summary sheet allowed): 30",
+    "Final (week 15, written, one handwritten A4 summary sheet allowed): 30",
+    "Extra points: up to 10; course total capped at 100"
+  ],
+  "notes": "Teacher's lectures are weak for this student: teach from the approved books — Blitzstein & Hwang 'Introduction to Probability' (probabilitybook.net), Stanford CS109 lectures, Grinstead & Snell — plus the course's Moodle files.",
+  "topics": [
+    {
+      "id": "sample-spaces",
+      "title": "Sample spaces, events, operations on events, finite and countable models",
+      "week": 1,
+      "keywords": [
+        "events",
+        "sample space"
+      ]
+    },
+    {
+      "id": "axioms",
+      "title": "Axioms of probability, probability space, sigma-algebra, geometric probability",
+      "week": 2,
+      "keywords": [
+        "axioms",
+        "geometric probability",
+        "sigma algebra"
+      ]
+    },
+    {
+      "id": "conditional",
+      "title": "Conditional probability, multiplication rule, independence",
+      "week": 3,
+      "keywords": [
+        "conditional probability",
+        "independence"
+      ]
+    },
+    {
+      "id": "bayes",
+      "title": "Total probability theorem and Bayes' theorem",
+      "week": 3,
+      "keywords": [
+        "bayes",
+        "total probability"
+      ]
+    },
+    {
+      "id": "discrete-rv",
+      "title": "Discrete random variables: Bernoulli, binomial, geometric, Poisson, hypergeometric",
+      "week": 4,
+      "keywords": [
+        "binomial",
+        "poisson",
+        "geometric",
+        "hypergeometric",
+        "discrete distributions"
+      ]
+    },
+    {
+      "id": "expectation-discrete",
+      "title": "Expectation and variance of discrete RVs, probability generating functions",
+      "week": 5,
+      "keywords": [
+        "expectation",
+        "variance",
+        "pgf",
+        "generating function"
+      ]
+    },
+    {
+      "id": "bernoulli-limits",
+      "title": "Poisson limit theorem, local and integral De Moivre–Laplace theorems",
+      "week": 6,
+      "keywords": [
+        "de moivre",
+        "laplace",
+        "poisson approximation"
+      ]
+    },
+    {
+      "id": "joint-discrete",
+      "title": "Joint discrete distributions, independence of RVs, covariance, correlation",
+      "week": 6,
+      "keywords": [
+        "covariance",
+        "correlation",
+        "joint distribution"
+      ]
+    },
+    {
+      "id": "continuous-rv",
+      "title": "Continuous RVs: CDF, PDF; uniform, exponential, normal, gamma",
+      "week": 9,
+      "keywords": [
+        "pdf",
+        "cdf",
+        "normal",
+        "exponential",
+        "gamma",
+        "uniform"
+      ]
+    },
+    {
+      "id": "expectation-continuous",
+      "title": "Expectation and variance of continuous RVs; distributions of functions of RVs",
+      "week": 10,
+      "keywords": [
+        "transformations",
+        "functions of random variables"
+      ]
+    },
+    {
+      "id": "joint-continuous",
+      "title": "Multivariate continuous distributions, marginals, independence, covariance",
+      "week": 11,
+      "keywords": [
+        "marginal",
+        "joint density"
+      ]
+    },
+    {
+      "id": "limit-theorems",
+      "title": "Chebyshev's inequality, 3-sigma rule, Law of Large Numbers, Central Limit Theorem",
+      "week": 12,
+      "keywords": [
+        "clt",
+        "lln",
+        "chebyshev",
+        "central limit"
+      ]
+    },
+    {
+      "id": "stochastic-processes",
+      "title": "Stochastic processes: Poisson process, Wiener process",
+      "week": 13,
+      "keywords": [
+        "poisson process",
+        "wiener"
+      ]
+    }
+  ]
+}

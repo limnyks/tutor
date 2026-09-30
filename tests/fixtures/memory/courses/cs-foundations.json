@@ -1,0 +1,14 @@
+{
+  "slug": "cs-foundations",
+  "code": "CS101",
+  "name": "Computer Science Foundations / Вступ до комп'ютерних наук",
+  "moodle_id": 4199,
+  "credits": 3,
+  "mode": "deadlines",
+  "ai_policy": "",
+  "assessment": [
+    "See Moodle: weekly tests (Тест N) and practical works (Практична N)"
+  ],
+  "notes": "Not tutored; the student handles it. Track deadlines only.",
+  "topics": []
+}

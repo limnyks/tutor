@@ -1,0 +1,114 @@
+{
+  "slug": "databases",
+  "code": "CS310",
+  "name": "Databases / Бази даних",
+  "moodle_id": 4429,
+  "credits": 4,
+  "mode": "tutor",
+  "ai_policy": "AI allowed for explanations, practice questions, syntax/reference questions. FORBIDDEN: pasting assignment conditions into an AI, asking for solutions, submitting AI-generated SQL/schemas/analysis. Any AI-generated content in a submission must be disclosed with prompts.",
+  "assessment": [
+    "Assignments 1-4: 15 points each = 6 technical correctness + 9 individual defense (2 bank questions + TA questions); skipping the defense = 0 for the whole assignment; after deadline max 7.5",
+    "Intermediate test (week 7): 15",
+    "Final exam (week 13): 25",
+    "Optional tasks: up to 10 extra"
+  ],
+  "notes": "Started late for the student; catch up from week 1. Check SQL by running it on PostgreSQL. Main book: Silberschatz, Korth, Sudarshan 'Database System Concepts' 7th ed. (DSC7).",
+  "topics": [
+    {
+      "id": "dbms-intro",
+      "title": "DBMS purpose, data models, schemas and instances; first SQL (SELECT, WHERE, ORDER BY, LIMIT)",
+      "week": 1,
+      "keywords": [
+        "select",
+        "dbms"
+      ]
+    },
+    {
+      "id": "relational-design",
+      "title": "Relational model, keys, integrity constraints, ER modelling, normalization and anomalies",
+      "week": 2,
+      "keywords": [
+        "keys",
+        "foreign key",
+        "normalization",
+        "er diagram",
+        "constraints"
+      ]
+    },
+    {
+      "id": "sql-algebra",
+      "title": "SQL and relational algebra: joins, aggregation, GROUP BY/HAVING, set operations, subqueries, CTEs, NULLs",
+      "week": 3,
+      "keywords": [
+        "joins",
+        "group by",
+        "subqueries",
+        "cte",
+        "relational algebra"
+      ]
+    },
+    {
+      "id": "storage",
+      "title": "How databases store data: files, pages, records, buffer pool, locality",
+      "week": 4,
+      "keywords": [
+        "pages",
+        "buffer pool"
+      ]
+    },
+    {
+      "id": "indexes",
+      "title": "Indexes, B+ trees, selectivity, query plans and EXPLAIN",
+      "week": 5,
+      "keywords": [
+        "b+ tree",
+        "index",
+        "explain",
+        "query plan"
+      ]
+    },
+    {
+      "id": "lsm",
+      "title": "LSM trees: memtables, SSTables, compaction, Bloom filters, amplification",
+      "week": 6,
+      "keywords": [
+        "lsm",
+        "sstable",
+        "bloom filter",
+        "compaction"
+      ]
+    },
+    {
+      "id": "transactions",
+      "title": "Transactions and concurrency: ACID, anomalies, isolation levels, locks, deadlocks, MVCC",
+      "week": 7,
+      "keywords": [
+        "acid",
+        "isolation",
+        "mvcc",
+        "deadlock"
+      ]
+    },
+    {
+      "id": "recovery",
+      "title": "Durability and recovery: write-ahead logging, checkpoints, redo, undo",
+      "week": 8,
+      "keywords": [
+        "wal",
+        "checkpoint",
+        "redo",
+        "undo"
+      ]
+    },
+    {
+      "id": "olap",
+      "title": "OLTP vs OLAP, row vs column storage, compression",
+      "week": 9,
+      "keywords": [
+        "olap",
+        "columnar",
+        "clickhouse"
+      ]
+    }
+  ]
+}

@@ -122,6 +122,29 @@ Claude live Moodle tools.
 - **Assignment conditions stay local.** They're saved on the Mac but never returned
   to Claude, because some courses forbid putting them into an AI prompt.
 
+## Memory (the tutor-memory repo)
+
+The tutor's memory lives in a separate private repo, `limnyks/tutor-memory`: the course
+catalog (topics from the syllabi, grading, AI rules), an append-only log of answers,
+lesson summaries and self-study reports, and the Moodle changes. Knowledge per topic,
+reviews and the daily briefing are recomputed from the log.
+
+Setup on the Mac (once):
+
+```sh
+git clone https://github.com/limnyks/tutor-memory ~/tutor-memory
+tutor memory-init
+claude mcp remove --scope user moodle   # replaced by the "tutor" connector of that folder
+```
+
+Study: `cd ~/tutor-memory && claude`. Each session starts with the briefing (deadlines,
+Moodle changes, reviews due, unchecked self-study, last lesson) and ends by syncing memory
+to GitHub. After every Moodle sync, the Moodle snapshot (without assignment conditions)
+and its changes are committed there too.
+
+Memory tools: `memory_briefing`, `memory_topics`, `memory_history`, `log_answer`,
+`log_summary`, `log_study`. Commands: `tutor briefing`, `tutor memory-sync`.
+
 ## Connector tools
 
 | Tool | Does |
