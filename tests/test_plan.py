@@ -53,7 +53,7 @@ def test_deadline_work_is_done_a_day_before_due(mem):
     assert sum(b["minutes"] for b in work) == 180
     assert all(b["end"] <= "2026-10-07T00:00:00+03:00" for b in work)
     assert work[0]["title"] == "CS310: Assignment 1" and "Your own work" in work[0]["details"]
-    assert not plan["warnings"][1:]  # only the missing-timetable note
+    assert not plan["warnings"]
 
 
 def test_submitted_work_and_other_courses_are_skipped(mem):
@@ -79,7 +79,13 @@ def test_timetable_classes_are_busy(mem):
     (mem / "plan" / "timetable.json").write_text(json.dumps({"classes": [
         {"course": "CS240", "day": "mon", "start": "09:00", "end": "22:00", "what": "all day"}]}))
     plan = _plan(mem, days=1)
-    assert plan["blocks"] == [] and not any("timetable" in w for w in plan["warnings"])
+    assert plan["blocks"] == []
+
+
+def test_class_in_calendar_moves_its_course_first(mem):
+    busy = [{"start": _at(MON, "09:00").isoformat(), "end": _at(MON, "10:20").isoformat(), "course": "CS240"}]
+    lessons = [b for b in _plan(mem, busy=busy, days=1)["blocks"] if b["kind"] == "lesson"]
+    assert lessons[0]["course"] == "CS240" and lessons[0]["start"] >= _at(MON, "10:35").isoformat()
 
 
 def test_daily_cap_and_one_lesson_per_course_a_day(mem):

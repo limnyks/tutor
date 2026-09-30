@@ -137,8 +137,10 @@ def _free_days(start: date, days: int, now: datetime, busy: list[tuple[datetime,
                 cs, ce = datetime.combine(d, _hm(c["start"]), KYIV), datetime.combine(d, _hm(c["end"]), KYIV)
                 day.free = _subtract(day.free, cs - gap, ce + gap)
                 day.classes.add(c.get("course", "").upper())
-        for bs, be in busy:
+        for bs, be, course in busy:
             day.free = _subtract(day.free, bs - gap, be + gap)
+            if course and bs.astimezone(KYIV).date() == d:
+                day.classes.add(course.upper())
         out.append(day)
     return out
 
@@ -214,12 +216,10 @@ def make_plan(memory_dir: Path, catalog: dict[str, Course], log: list[dict], sna
     for b in busy:
         bs, be = parse_iso(b.get("start")), parse_iso(b.get("end"))
         if bs and be and be > bs:
-            busy_iv.append((bs if bs.tzinfo else bs.replace(tzinfo=KYIV), be if be.tzinfo else be.replace(tzinfo=KYIV)))
+            busy_iv.append((bs if bs.tzinfo else bs.replace(tzinfo=KYIV), be if be.tzinfo else be.replace(tzinfo=KYIV),
+                            b.get("course")))
     plan_days = _free_days(start, days, now, busy_iv, timetable, s)
     warnings = []
-    if not timetable:
-        warnings.append("No class timetable in plan/timetable.json: classes are avoided only if they are "
-                        "in the calendar.")
     if not snap:
         warnings.append("No Moodle data: deadlines are not in this plan.")
     min_block = s["min_block_minutes"]
@@ -255,20 +255,25 @@ def make_plan(memory_dir: Path, catalog: dict[str, Course], log: list[dict], sna
             # Due after this plan: do this plan's fair share now, the rest in the next one.
             share = need * (plan_end - now) / (finish_by - now)
             need = min(need, max(min_block, int(-(-share // 15) * 15)))
-        for day in plan_days:
-            if need <= 0:
-                break
-            if datetime.combine(day.day, time(0), KYIV) >= finish_by:
-                break
-            chunk = min(need, s["lesson_minutes"])
-            slot = day.take(chunk, not_after=finish_by, min_minutes=min(min_block, chunk))
-            if slot:
-                got = int((slot[1] - slot[0]).total_seconds() // 60)
-                need -= got
-                due_txt = task["due"].astimezone(KYIV).strftime("%a %d %b %H:%M")
-                day.blocks.append(Block(*slot, "deadline", c.code, f"{c.code}: {task['name']}",
-                                        f"Your own work. Due {due_txt}." + (" OVERDUE." if task["overdue"] else ""),
-                                        f"Moodle deadline {due_txt}"))
+        # First one block a day (spread out), then any free time left before the deadline.
+        for per_day in (1, 99):
+            for day in plan_days:
+                if need <= 0 or datetime.combine(day.day, time(0), KYIV) >= finish_by:
+                    break
+                for _ in range(per_day):
+                    chunk = min(need, s["lesson_minutes"])
+                    slot = day.take(chunk, not_after=finish_by, min_minutes=min(min_block, chunk))
+                    if slot is None:
+                        break
+                    need -= int((slot[1] - slot[0]).total_seconds() // 60)
+                    due_txt = task["due"].astimezone(KYIV).strftime("%a %d %b %H:%M")
+                    day.blocks.append(Block(*slot, "deadline", c.code, f"{c.code}: {task['name']}",
+                                            f"Your own work. Due {due_txt}." + (" OVERDUE." if task["overdue"] else ""),
+                                            f"Moodle deadline {due_txt}"))
+                    if need <= 0:
+                        break
+            if need <= 0 or finish_by > plan_end:
+                break  # a later deadline gets only its share, spread out
         if need > 0 and finish_by <= plan_end:
             warnings.append(f"{c.code} {task['name']}: {need} min of the estimated work did not fit before "
                             f"{finish_by.astimezone(KYIV):%a %d %b %H:%M}. Free time elsewhere or start now.")
@@ -284,7 +289,7 @@ def make_plan(memory_dir: Path, catalog: dict[str, Course], log: list[dict], sna
         used = {b.course for b in day.blocks}
         # Lectures are easier to absorb the same day: a small bonus for courses with a class that day.
         # Each lesson already planned halves a course's claim, so no course is left out for the week.
-        order = sorted(tutored, key=lambda c: -needs[c.code][0] * (1.3 if c.code in day.classes else 1.0)
+        order = sorted(tutored, key=lambda c: -needs[c.code][0] * (2.0 if c.code in day.classes else 1.0)
                        / (1 + planned[c.code]))
         for c in order:
             if c.code in used:

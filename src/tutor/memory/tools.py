@@ -89,7 +89,8 @@ def plan_week(busy: list[dict], start: Optional[str] = None, days: Optional[int]
     """Propose study blocks: Sunday test/reviews, work on Moodle deadlines, lessons.
 
     busy: every timed calendar event in the period as {"start": ISO, "end": ISO} (all calendars;
-    leave out all-day events and the tutor's own "tutor-plan" events, which get replaced).
+    leave out all-day events and the tutor's own "tutor-plan" events, which get replaced). For KSE
+    class events add "course": the course code (e.g. "CS240"), so lessons follow that day's class.
     start: YYYY-MM-DD, default today (Kyiv). days: default through the coming Sunday.
     Returns blocks, minutes per course and warnings (work that does not fit)."""
     from ..moodle.dates import KYIV

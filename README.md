@@ -151,7 +151,7 @@ The blocks go into your main Google Calendar (color "Sage", 10-minute reminder).
 
 - Day windows, daily maximum, block length, effort per assignment, course weights:
   `plan/settings.json` in tutor-memory.
-- Your classes: `plan/timetable.json` (the tutor treats them as busy).
+- Your classes come from the KSE calendar; `plan/timetable.json` is only for classes missing there.
 - Tell the tutor how much you did on an assignment ("2 h on CS310 Assignment 1"), so the
   plan stops re-planning finished work.
 - `tutor plan` prints a draft in Terminal (without reading the calendar).
