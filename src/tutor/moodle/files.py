@@ -28,6 +28,38 @@ Head = Callable[[str], "tuple[str | None, int | None]"]
 _UNSAFE = re.compile(r'[\\/:*?"<>|\x00-\x1f]+')
 
 
+def fix_mojibake(name: str) -> str:
+    """Undo UTF-8 bytes read as Latin-1 ('ÐÑÐ°Ð…' -> 'Практична…').
+
+    Header values arrive decoded as Latin-1, so a Cyrillic filename sent as raw UTF-8
+    comes out garbled. Plain ASCII and correctly decoded names are left unchanged.
+    """
+    try:
+        return name.encode("latin-1").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return name
+
+
+def repair_names(manifest: dict) -> int:
+    """Rename files saved earlier under a garbled (Latin-1-decoded) name. Returns how many."""
+    fixed = 0
+    for key, entry in list(manifest.items()):
+        path = Path(entry["path"]) if entry.get("path") else None
+        if path is None:
+            continue
+        good = fix_mojibake(path.name)
+        if good == path.name:
+            continue
+        new_path = path.with_name(safe_name(good))
+        if path.exists() and not new_path.exists():
+            path.rename(new_path)
+        activity_id, _, name = key.partition(":")
+        del manifest[key]
+        manifest[f"{activity_id}:{fix_mojibake(name)}"] = {**entry, "path": str(new_path)}
+        fixed += 1
+    return fixed
+
+
 def safe_name(name: str, limit: int = 120) -> str:
     cleaned = _UNSAFE.sub("_", name).strip(" .") or "untitled"
     return cleaned[:limit]
@@ -68,6 +100,7 @@ def save_file(
         return _skip_too_large(manifest, course, activity, url, got.final_url, len(got.body))
     digest = hashlib.sha256(got.body).hexdigest()
     key = file_key(activity["id"], got.filename)
+    _rename_if_same_content(cfg, manifest, key, url, digest, course, section, got.filename, activity)
     entry = manifest.get(key)
     if entry and entry.get("sha256") == digest:
         entry["final_url"] = got.final_url
@@ -102,6 +135,23 @@ def save_file(
         "name": got.filename, "path": str(path), "activity": activity["name"],
         "section": section, "graded": graded, "sha256": digest,
     }, course)
+
+
+def _rename_if_same_content(cfg, manifest, key, url, digest, course, section, filename, activity) -> None:
+    """Same file, new name (renamed on Moodle, or a name we used to decode wrongly): move it."""
+    if key in manifest:
+        return
+    for old_key, old in list(manifest.items()):
+        if old.get("source_url") == url and old.get("sha256") == digest and old.get("path"):
+            old_path = Path(old["path"])
+            del manifest[old_key]
+            folder = cfg.files_dir / safe_name(course["name"]) / safe_name(section or "General")
+            new_path = _free_path(manifest, folder, filename, activity)
+            if old_path.exists():
+                new_path.parent.mkdir(parents=True, exist_ok=True)
+                old_path.rename(new_path)
+            manifest[key] = {**old, "path": str(new_path)}
+            return
 
 
 def _free_path(manifest: dict, folder: Path, filename: str, activity: dict) -> Path:

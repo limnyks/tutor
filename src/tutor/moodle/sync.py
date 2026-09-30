@@ -11,7 +11,7 @@ from typing import Callable
 from .browser import LoginRequired, MoodleSession, notify
 from .config import Config
 from .diff import diff_snapshots
-from .files import Fetched, save_file
+from .files import Fetched, repair_names, save_file
 from .parse import (
     parse_assignment,
     parse_course_page,
@@ -224,6 +224,8 @@ def run_sync(cfg: Config, *, download: bool = True, log: Log = print, session_cl
     with sync_lock(cfg):
         old = read_json(cfg.snapshot_path, None)
         manifest = read_json(cfg.manifest_path, {})
+        if repair_names(manifest):
+            write_json(cfg.manifest_path, manifest)
         file_events: list[dict] = []
         try:
             with session_cls(cfg) as session:

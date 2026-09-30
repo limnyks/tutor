@@ -105,3 +105,13 @@ def test_login_detection():
     assert is_login_page("https://accounts.google.com/v3/signin/identifier", "")
     assert not is_login_page(f"{BASE}/my/courses.php", page("my_courses.html"))
     assert oauth_login_url(page("login.html"), BASE).startswith(f"{BASE}/auth/oauth2/login.php?id=1")
+
+
+def test_cyrillic_file_name_from_header_is_repaired():
+    from tutor.moodle.browser import _filename, fix_mojibake
+    garbled = "Практична_1.pdf".encode("utf-8").decode("latin-1")
+    assert fix_mojibake(garbled) == "Практична_1.pdf"
+    assert fix_mojibake("Lecture 1.pdf") == "Lecture 1.pdf"
+    assert fix_mojibake("Практична.pdf") == "Практична.pdf"
+    header = {"content-disposition": f'inline; filename="{garbled}"'}
+    assert _filename(header, "https://x/pluginfile.php/1/a.pdf") == "Практична_1.pdf"

@@ -20,7 +20,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 from .config import Config
-from .files import Fetched
+from .files import Fetched, fix_mojibake
 from .parse import filename_from_url, is_login_page, oauth_login_url
 
 # Hosts the headless reader may navigate to. Anything else is blocked.
@@ -99,7 +99,7 @@ def _filename(headers: dict, url: str) -> str:
         msg["content-disposition"] = disposition
         name = msg.get_filename()
         if name:
-            return unquote(name)
+            return fix_mojibake(unquote(name))
     return filename_from_url(url)
 
 

@@ -225,3 +225,33 @@ class _FrozenDatetime:
 
     def fromisoformat(self, value):
         return self._real.fromisoformat(value)
+
+
+def test_file_downloaded_under_wrong_name_is_renamed_not_duplicated(cfg):
+    url = f"{BASE}/mod/resource/view.php?id=901&redirect=1"
+    garbled = "Лекція.pdf".encode("utf-8").decode("latin-1")
+    FakeSession.files[url] = (b"slides", f"{BASE}/pluginfile.php/1/content/1/{garbled}")
+    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    FakeSession.files[url] = (b"slides", f"{BASE}/pluginfile.php/1/content/1/Лекція.pdf")
+    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    folder = cfg.files_dir / "STAT2100 Probability for CS" / "Week 1. Sample spaces"
+    names = sorted(p.name for p in folder.iterdir() if p.is_file())
+    assert "Лекція.pdf" in names and garbled not in names
+
+
+def test_existing_garbled_file_names_are_repaired_without_download(cfg):
+    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    manifest = read_json(cfg.manifest_path, {})
+    key, entry = next((k, v) for k, v in manifest.items() if v["activity"] == "Lecture 1 slides")
+    garbled = "Лекція.pdf".encode("utf-8").decode("latin-1")
+    bad_path = Path(entry["path"]).with_name(garbled)
+    Path(entry["path"]).rename(bad_path)
+    del manifest[key]
+    manifest[f"901:{garbled}"] = {**entry, "path": str(bad_path)}
+    from tutor.moodle.store import write_json
+    write_json(cfg.manifest_path, manifest)
+
+    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    fixed = read_json(cfg.manifest_path, {})
+    assert "901:Лекція.pdf" in fixed and Path(fixed["901:Лекція.pdf"]["path"]).name == "Лекція.pdf"
+    assert Path(fixed["901:Лекція.pdf"]["path"]).exists() and not bad_path.exists()
