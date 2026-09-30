@@ -178,9 +178,13 @@ class _HtmlPage(Exception):
 
 def download_files(
     session: MoodleSession, cfg: Config, snap: dict, manifest: dict, log: Log,
-    course_id: int | None = None,
+    course_id: int | None = None, only_new: bool = False,
 ) -> list[dict]:
-    """Download new or changed files for every resource, folder and assignment attachment."""
+    """Download new or changed files for every resource, folder, page and assignment attachment.
+
+    only_new: skip activities whose files were already downloaded (a quick check for
+    new material); the full check for updated files runs about once a day.
+    """
     events: list[dict] = []
 
     def fetch_file(url: str) -> Fetched:
@@ -201,15 +205,18 @@ def download_files(
             return
         if ev:
             events.append(ev)
-            log(f"  {'updated' if ev['type'] == 'file_updated' else 'new'}: {ev['data']['path']}")
+            label = {"file_updated": "updated", "file_too_large": "too large, skipped"}.get(ev["type"], "new")
+            log(f"  {label}: {ev['data'].get('path') or ev['data'].get('activity')}")
 
+    have_files = {v.get("activity_id") for v in manifest.values()}
     candidates = [a for a in snap["activities"].values()
                   if a["kind"] in ("resource", "folder", "page", "assign")
-                  and (course_id is None or a["course_id"] == course_id)]
-    log(f"Checking files for {len(candidates)} activities (new files are listed as they download)")
-    for act in snap["activities"].values():
-        if course_id is not None and act["course_id"] != course_id:
-            continue
+                  and (course_id is None or a["course_id"] == course_id)
+                  and not (only_new and a["id"] in have_files)]
+    log(f"Checking files for {len(candidates)} activities"
+        + (" (new ones only; full check once a day)" if only_new else "")
+        + " — new files are listed as they download")
+    for act in candidates:
         course = snap["courses"][str(act["course_id"])]
         try:
             if act["kind"] == "resource":
@@ -231,7 +238,7 @@ def download_files(
                                        content_type="text/html", final_url=a["url"]))
                     if ev:
                         events.append(ev)
-                        log(f"  page: {ev['data']['path']}")
+                        log(f"  page: {ev['data'].get('path') or ev['data'].get('activity')}")
                 for link in parse_file_links(html, cfg.base_url, MAIN_REGION):
                     save(course, act, link["url"])
             elif act["kind"] == "assign":
@@ -253,8 +260,25 @@ def write_status(cfg: Config, result: str, message: str = "", **extra) -> None:
     write_json(cfg.status_path, status)
 
 
-def run_sync(cfg: Config, *, download: bool = True, log: Log = print, session_cls=MoodleSession) -> dict:
-    """Full sync. Returns a summary. Raises LoginRequired when you need to sign in again."""
+FULL_FILE_CHECK_HOURS = 20
+
+
+def _full_file_check_due(cfg: Config) -> bool:
+    last = read_json(cfg.status_path, {}).get("last_full_file_check")
+    if not last:
+        return True
+    return datetime.now(timezone.utc) - datetime.fromisoformat(last) > timedelta(hours=FULL_FILE_CHECK_HOURS)
+
+
+def run_sync(cfg: Config, *, download: bool = True, full_files: bool | None = None,
+             log: Log = print, session_cls=MoodleSession) -> dict:
+    """Sync all courses. Returns a summary. Raises LoginRequired when you need to sign in again.
+
+    full_files: re-check every known file for updates (default: once a day); otherwise
+    only activities without downloaded files are checked.
+    """
+    if full_files is None:
+        full_files = _full_file_check_due(cfg)
     with sync_lock(cfg):
         old = read_json(cfg.snapshot_path, None)
         manifest = read_json(cfg.manifest_path, {})
@@ -266,7 +290,7 @@ def run_sync(cfg: Config, *, download: bool = True, log: Log = print, session_cl
                 snap = collect(session, cfg, old or {}, log)
                 if download:
                     try:
-                        file_events = download_files(session, cfg, snap, manifest, log)
+                        file_events = download_files(session, cfg, snap, manifest, log, only_new=not full_files)
                     finally:
                         write_json(cfg.manifest_path, manifest)
         except LoginRequired as exc:
@@ -287,7 +311,11 @@ def run_sync(cfg: Config, *, download: bool = True, log: Log = print, session_cl
             "events": len(events),
             "errors": len(snap["errors"]),
         }
-        write_status(cfg, "ok", **summary)
+        if download and full_files:
+            summary["full_file_check"] = True
+            write_status(cfg, "ok", last_full_file_check=now_iso(), **summary)
+        else:
+            write_status(cfg, "ok", **summary)
         return summary
 
 

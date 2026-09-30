@@ -44,7 +44,7 @@ def cmd_sync(args) -> int:
     cfg = load_config()
     print(f"[{datetime.now():%Y-%m-%d %H:%M}] Moodle sync")
     try:
-        summary = run_sync(cfg, download=not args.no_download)
+        summary = run_sync(cfg, download=not args.no_download, full_files=True if args.full else None)
     except LoginRequired as exc:
         print(f"Login needed: {exc}\nRun: tutor moodle-login")
         return 2
@@ -183,6 +183,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("moodle-login", help="sign in to Moodle once in Chrome").set_defaults(func=cmd_login)
     p = sub.add_parser("moodle-sync", help="read all courses and download new files")
     p.add_argument("--no-download", action="store_true")
+    p.add_argument("--full", action="store_true", help="re-check every known file for updates now")
     p.set_defaults(func=cmd_sync)
     p = sub.add_parser("moodle-download", help="download files for one course now")
     p.add_argument("course", help="course id or part of its name")

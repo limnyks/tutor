@@ -110,7 +110,7 @@ def test_second_sync_reports_only_changes(cfg):
         b"slides-v2", f"{BASE}/pluginfile.php/1/content/2/Lecture1.pdf")
     FakeSession.pages["/grade/report/user/index.php?id=57"] = page("grades.html").replace(
         '<td class="column-grade">-</td>', '<td class="column-grade">27.00</td>')
-    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    run_sync(cfg, full_files=True, log=lambda _: None, session_cls=FakeSession)
 
     new = read_events(cfg)[before:]
     assert sorted(e["type"] for e in new) == ["file_updated", "new_grade"]
@@ -182,15 +182,17 @@ def test_same_file_name_in_two_activities_keeps_both(cfg):
 
 def test_oversized_file_is_reported_once_and_not_downloaded(cfg):
     cfg.max_file_mb = 0
+    logged = []
     calls = []
     original = FakeSession.fetch
     FakeSession.fetch = lambda self, url: calls.append(url) or original(self, url)
     try:
-        run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
-        run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+        run_sync(cfg, log=logged.append, session_cls=FakeSession)
+        run_sync(cfg, full_files=True, log=logged.append, session_cls=FakeSession)
     finally:
         FakeSession.fetch = original
     assert calls == []
+    assert not [line for line in logged if "failed" in line]
     too_large = [e for e in read_events(cfg) if e["type"] == "file_too_large"]
     assert len(too_large) == 6
 
@@ -283,3 +285,23 @@ def test_assignments_closed_long_ago_are_not_reopened(cfg, monkeypatch):
         assert "/mod/assign/view.php?id=903" in opened
     finally:
         FakeSession.get_html = original
+
+
+def test_quick_sync_checks_only_new_activities_full_check_daily(cfg):
+    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)  # first run: full
+    assert read_json(cfg.status_path, {}).get("last_full_file_check")
+
+    # Teacher replaces a known file; a quick sync (full check not due) doesn't look at it.
+    url = f"{BASE}/mod/resource/view.php?id=901&redirect=1"
+    FakeSession.files[url] = (b"slides-v2", f"{BASE}/pluginfile.php/1/content/2/Lecture1.pdf")
+    calls = []
+    original = FakeSession.head
+    FakeSession.head = lambda self, u: calls.append(u) or original(self, u)
+    try:
+        run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+        assert calls == []
+        # The daily full check (or --full) picks the update up.
+        run_sync(cfg, full_files=True, log=lambda _: None, session_cls=FakeSession)
+    finally:
+        FakeSession.head = original
+    assert "file_updated" in [e["type"] for e in read_events(cfg)]

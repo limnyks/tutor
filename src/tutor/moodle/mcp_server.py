@@ -227,7 +227,9 @@ def moodle_download(course: str) -> dict:
         events = run_download(_cfg(), c["id"], log=lambda _: None)
     except LoginRequired as exc:
         return {"result": "login_required", "message": f"{exc} Ask the user to run: tutor moodle-login"}
-    return {"course": c["name"], "downloaded": [e["data"]["path"] for e in events]}
+    return {"course": c["name"],
+            "downloaded": [e["data"]["path"] for e in events if e["data"].get("path")],
+            "too_large": [e["data"]["activity"] for e in events if e["type"] == "file_too_large"]}
 
 
 def main() -> None:
