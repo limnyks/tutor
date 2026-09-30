@@ -10,6 +10,7 @@ import plistlib
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from .config import Config
@@ -54,8 +55,20 @@ def install(cfg: Config) -> Path:
     uninstall(quiet=True)
     with open(path, "wb") as fh:
         plistlib.dump(build_plist(cfg, _tutor_bin()), fh)
-    subprocess.run(["launchctl", "bootstrap", f"gui/{os.getuid()}", str(path)], check=True)
-    return path
+    for attempt in range(3):  # right after bootout, launchd can refuse briefly
+        done = subprocess.run(["launchctl", "bootstrap", f"gui/{os.getuid()}", str(path)],
+                              capture_output=True, text=True)
+        if done.returncode == 0:
+            return path
+        time.sleep(2)
+    raise RuntimeError(f"launchctl could not load the schedule: {done.stderr.strip()}")
+
+
+def is_installed() -> bool:
+    if sys.platform != "darwin" or not plist_path().exists():
+        return False
+    done = subprocess.run(["launchctl", "print", f"gui/{os.getuid()}/{LABEL}"], capture_output=True)
+    return done.returncode == 0
 
 
 def uninstall(quiet: bool = False) -> None:

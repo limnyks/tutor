@@ -13,7 +13,7 @@ Claude live Moodle tools.
 
 ## Setup on the Mac (once, ~15 min)
 
-1. **Install uv** (it brings its own Python 3.12; your system Python 3.9 is untouched):
+1. **Install uv** (it brings its own Python; your system Python 3.9 is untouched):
 
    ```sh
    curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -80,14 +80,18 @@ Claude live Moodle tools.
    tutor moodle-schedule install
    ```
 
-   Log: `~/.tutor/moodle/sync.log`. Remove with `tutor moodle-schedule uninstall`.
+   - Each run reads open assignments, quizzes, grades, announcements and deadlines,
+     and downloads files from new activities. Once a day it also re-checks every
+     known file for updates (or run `tutor moodle-sync --full`).
+   - Log: `~/.tutor/moodle/sync.log` (kept to ~1 MB). Remove with
+     `tutor moodle-schedule uninstall`. `tutor moodle-status` shows whether it's on.
 
-8. **Connect to Claude:**
+8. **Connect to Claude** (full path, so it works however Claude is started):
 
    - Claude Code:
 
      ```sh
-     claude mcp add --scope user moodle -- tutor moodle-mcp
+     claude mcp add --scope user moodle -- "$(which tutor)" moodle-mcp
      ```
 
    - Claude desktop app: Settings → Developer → Edit Config, add:
@@ -103,6 +107,20 @@ Claude live Moodle tools.
      (`which tutor` prints the exact path.) Restart the app.
 
    Then ask e.g. "what's due this week on Moodle?" or "download new Databases files".
+
+## Good to know
+
+- **Moodle sees these visits as you.** Opening an assignment or file counts as viewing
+  it, so activities that complete "on view" get marked complete, and teachers' logs
+  show the visits. Nothing is ever submitted, posted or marked done by hand.
+- **Skipping a course:** add a name fragment or id to `courses_ignore` in
+  `~/.tutor/config.json`, e.g. `"courses_ignore": ["Educational grants"]`. Its
+  deadlines still come from the Moodle calendar.
+- **New term:** new courses appear by themselves (one "new course" event each). Old
+  courses stay listed on Moodle and keep being read cheaply; add them to
+  `courses_ignore` if you want them gone.
+- **Assignment conditions stay local.** They're saved on the Mac but never returned
+  to Claude, because some courses forbid putting them into an AI prompt.
 
 ## Connector tools
 
@@ -128,6 +146,10 @@ Answers come from the last sync, so they are instant. `moodle_sync` and
   password or 2FA again. Run `tutor moodle-login`, sign in, Cmd+Q. About 1 minute.
 - **Browser fails to start:** the login Chrome window is probably still open. Quit it
   with Cmd+Q.
+- **"Sync failed: No courses found"**: Moodle showed something else instead of your
+  courses (maintenance, a policy to accept). Open Moodle in a browser; nothing was
+  overwritten, and the next run continues normally.
+- **"A background Moodle sync is running"**: wait a few minutes and repeat the command.
 - **A course shows 0 activities or dates are missing:** Moodle's page layout differs
   from what the parser expects. Run `tutor moodle-inspect --course <name>` and send
   the output.

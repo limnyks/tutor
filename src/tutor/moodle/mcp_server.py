@@ -9,10 +9,8 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-try:
-    from mcp.server.mcpserver import MCPServer
-except ImportError:  # mcp 1.x
-    from mcp.server.fastmcp import FastMCP as MCPServer
+# mcp 2 runs synchronous tools in a worker thread, which Playwright's sync API needs.
+from mcp.server.mcpserver import MCPServer
 
 from .browser import LoginRequired
 from .config import load_config

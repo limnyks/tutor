@@ -305,3 +305,106 @@ def test_quick_sync_checks_only_new_activities_full_check_daily(cfg):
     finally:
         FakeSession.head = original
     assert "file_updated" in [e["type"] for e in read_events(cfg)]
+
+
+# --- review pass 1 regressions -------------------------------------------------
+
+def test_page_with_moodle_random_ids_is_not_reported_as_updated(cfg):
+    """Moodle's JS stamps time-based ids into rendered pages; that is not a change."""
+    def rendered(stamp, sesskey):
+        return page("page.html").replace(
+            "<p>A DBMS", f'<p id="yui_3_18_1_1_{stamp}_8">A DBMS').replace(
+            "manages data.", f'manages data. <a href="/course/view.php?id=57&sesskey={sesskey}">x</a>')
+
+    FakeSession.pages["/mod/page/view.php?id=905"] = rendered(1790802617307, "Ab12Cd34")
+    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    FakeSession.pages["/mod/page/view.php?id=905"] = rendered(1790809999999, "Zz98Yy76")
+    before = len(read_events(cfg))
+    run_sync(cfg, full_files=True, log=lambda _: None, session_cls=FakeSession)
+    assert [e["type"] for e in read_events(cfg)[before:]] == []
+
+
+def test_no_courses_keeps_last_snapshot_instead_of_reporting_everything_new(cfg):
+    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    snap_before = read_json(cfg.snapshot_path, None)
+    FakeSession.pages["/my/courses.php"] = "<html><body>Site maintenance</body></html>"
+    with pytest.raises(RuntimeError, match="No courses found"):
+        run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    assert read_json(cfg.snapshot_path, None) == snap_before
+    assert read_json(cfg.status_path, {})["result"] == "error"
+
+    FakeSession.pages["/my/courses.php"] = page("my_courses.html")
+    before = len(read_events(cfg))
+    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    assert [e["type"] for e in read_events(cfg)[before:]] == []
+    assert "traceback" not in read_json(cfg.status_path, {})
+
+
+def test_calendar_failure_keeps_known_deadlines(cfg):
+    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    original = FakeSession.get_html
+
+    def broken(self, u, wait_for=None):
+        if "calendar" in u:
+            raise TimeoutError("calendar did not load")
+        return original(self, u, wait_for)
+
+    FakeSession.get_html = broken
+    try:
+        summary = run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    finally:
+        FakeSession.get_html = original
+    assert summary["deadlines"] == 2 and summary["errors"] == 1
+
+
+def test_event_pushed_past_the_10_event_cap_is_not_reported_new_again(cfg):
+    from tutor.moodle import sync as sync_mod
+
+    def upcoming(ids_whens):
+        return "<html><body>" + "".join(
+            f'<div class="event" data-event-id="{i}" data-event-title="E{i}">'
+            f'<div class="description"><div class="row"><div>{w}</div></div></div></div>'
+            for i, w in ids_whens) + "</body></html>"
+
+    ten = [(i, f"Monday, {i} November 2026, 10:00 AM") for i in range(10, 20)]
+    FakeSession.pages["/calendar/view.php?view=upcoming"] = upcoming(ten)
+    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    # A new earlier event pushes event 19 (Nov 19) off the list...
+    FakeSession.pages["/calendar/view.php?view=upcoming"] = upcoming(
+        [(5, "Thursday, 5 November 2026, 10:00 AM")] + ten[:9])
+    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    # ...then comes back.
+    FakeSession.pages["/calendar/view.php?view=upcoming"] = upcoming(ten)
+    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    new_deadlines = [e["data"]["name"] for e in read_events(cfg) if e["type"] == "new_deadline"]
+    assert new_deadlines == ["E5"]
+    assert sync_mod.UPCOMING_CAP == 10
+
+
+def test_new_course_is_one_event_not_one_per_activity(cfg):
+    FakeSession.pages["/my/courses.php"] = page("my_courses.html").replace(
+        'data-course-id="57"', 'data-course-id="57" hidden').replace("id=57", "id=58")
+    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)  # course 57 not visible yet
+    FakeSession.pages["/my/courses.php"] = page("my_courses.html")
+    before = len(read_events(cfg))
+    run_sync(cfg, download=False, log=lambda _: None, session_cls=FakeSession)
+    types = [e["type"] for e in read_events(cfg)[before:]]
+    assert types.count("new_course") == 1
+    assert "new_activity" not in types and "new_grade" not in types and "new_announcement" not in types
+
+
+def test_deleted_file_is_downloaded_again_on_full_check(cfg):
+    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    slides = cfg.files_dir / "STAT2100 Probability for CS" / "Week 1. Sample spaces" / "Lecture1.pdf"
+    slides.unlink()
+    run_sync(cfg, full_files=True, log=lambda _: None, session_cls=FakeSession)
+    assert slides.read_bytes() == b"slides-v1"
+
+
+def test_changing_files_dir_downloads_into_the_new_folder(cfg):
+    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    cfg.files_dir = cfg.files_dir.parent / "drive"
+    run_sync(cfg, full_files=True, log=lambda _: None, session_cls=FakeSession)
+    assert (cfg.files_dir / "STAT2100 Probability for CS" / "Week 1. Sample spaces" / "Lecture1.pdf").exists()
+    paths = [v["path"] for v in read_json(cfg.manifest_path, {}).values() if v.get("path")]
+    assert paths and all(p.startswith(str(cfg.files_dir)) for p in paths)

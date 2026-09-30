@@ -140,8 +140,11 @@ class MoodleSession:
         return self
 
     def __exit__(self, *exc) -> None:
-        self.ctx.close()
-        self._pw.stop()
+        try:
+            self.ctx.close()
+            self._pw.stop()
+        except Exception:
+            pass  # browser already gone (Ctrl+C, crash); nothing left to clean up
 
     # -- safety -------------------------------------------------------------
 
@@ -153,6 +156,9 @@ class MoodleSession:
         render (course lists, calendar).
         """
         host = urlparse(request.url).hostname or ""
+        if request.resource_type in ("image", "media", "font") and host == self.cfg.host:
+            route.abort()  # not needed to read the page; saves time
+            return
         if request.is_navigation_request() and host != self.cfg.host and host not in GOOGLE_LOGIN_HOSTS:
             route.abort()
             return
@@ -245,7 +251,11 @@ class MoodleSession:
         self._pause()
         resp = self.ctx.request.get(self.cfg.url(url), timeout=180_000)
         if urlparse(resp.url).hostname in GOOGLE_LOGIN_HOSTS or "/login/" in resp.url:
-            raise LoginRequired("Moodle login expired.")
+            # Moodle's session ran out mid-run: log in again through a page, then retry once.
+            self.get_html("/my/")
+            resp = self.ctx.request.get(self.cfg.url(url), timeout=180_000)
+            if urlparse(resp.url).hostname in GOOGLE_LOGIN_HOSTS or "/login/" in resp.url:
+                raise LoginRequired("Moodle login expired.")
         if not resp.ok:
             raise RuntimeError(f"HTTP {resp.status} for {url}")
         headers = {k.lower(): v for k, v in resp.headers.items()}

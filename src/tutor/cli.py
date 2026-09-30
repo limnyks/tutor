@@ -18,19 +18,28 @@ from .moodle.parse import (
     parse_grade_report,
     parse_upcoming,
 )
-from .moodle.store import AlreadyRunning, read_json
+from .moodle.store import AlreadyRunning, read_json, sync_lock
+
+
+COURSE_LINKS = 'a[href*="/course/view.php"]'
 
 
 def cmd_login(args) -> int:
     cfg = load_config()
-    print("A Chrome window will open on Moodle.")
-    print("Sign in with your KSE Google account, check that you see your courses, then quit that Chrome window (Cmd+Q).")
-    open_login_window(cfg)
-    print("Checking the saved login…")
     try:
-        with MoodleSession(cfg) as s:
-            _, html = s.get_html("/my/courses.php")
-            courses = parse_courses(html, cfg.base_url)
+        # Holding the sync lock keeps a background sync from using the profile meanwhile.
+        with sync_lock(cfg):
+            print("A Chrome window will open on Moodle.")
+            print("Sign in with your KSE Google account, check that you see your courses, "
+                  "then quit that Chrome window (Cmd+Q).")
+            open_login_window(cfg)
+            print("Checking the saved login…")
+            with MoodleSession(cfg) as s:
+                _, html = s.get_html("/my/courses.php", wait_for=COURSE_LINKS)
+                courses = parse_courses(html, cfg.base_url)
+    except AlreadyRunning:
+        print("A background Moodle sync is running right now. Try again in a few minutes.")
+        return 1
     except LoginRequired as exc:
         print(f"Not logged in: {exc}")
         return 2
@@ -42,7 +51,8 @@ def cmd_sync(args) -> int:
     from .moodle.sync import run_sync
 
     cfg = load_config()
-    print(f"[{datetime.now():%Y-%m-%d %H:%M}] Moodle sync")
+    _trim_log(cfg.log_path)
+    print(f"[{datetime.now():%Y-%m-%d %H:%M}] Moodle sync", flush=True)
     try:
         summary = run_sync(cfg, download=not args.no_download, full_files=True if args.full else None)
     except LoginRequired as exc:
@@ -51,8 +61,23 @@ def cmd_sync(args) -> int:
     except AlreadyRunning as exc:
         print(exc)
         return 0
+    except Exception as exc:  # details are in `tutor moodle-status` / the status file
+        print(f"Sync failed: {exc}\nNothing was overwritten; the last good data is kept.")
+        return 1
     print(json.dumps(summary))
     return 0
+
+
+def _trim_log(path, keep_bytes: int = 1_000_000) -> None:
+    """Keep the background-sync log from growing forever: keep its last ~1 MB."""
+    try:
+        if path.stat().st_size > 2 * keep_bytes:
+            with open(path, "rb") as fh:
+                fh.seek(-keep_bytes, 2)
+                tail = fh.read()
+            path.write_bytes(tail)
+    except OSError:
+        pass
 
 
 def cmd_download(args) -> int:
@@ -84,6 +109,9 @@ def cmd_status(args) -> int:
     for key in ("courses", "activities", "deadlines", "events", "errors"):
         if key in status:
             print(f"  {key}: {status[key]}")
+    if status.get("last_full_file_check"):
+        print(f"Last full file check: {status['last_full_file_check']}")
+    print(f"Background sync: {'on' if schedule.is_installed() else 'off (tutor moodle-schedule install)'}")
     return 0 if status.get("result") == "ok" else 2
 
 
@@ -96,8 +124,17 @@ def cmd_inspect(args) -> int:
     def save(name: str, html: str) -> None:
         (out / f"{name}.html").write_text(html)
 
+    try:
+        with sync_lock(cfg):
+            return _inspect(cfg, args, out, save)
+    except AlreadyRunning:
+        print("A background Moodle sync is running right now. Try again in a few minutes.")
+        return 1
+
+
+def _inspect(cfg, args, out, save) -> int:
     with MoodleSession(cfg) as s:
-        _, html = s.get_html("/my/courses.php")
+        _, html = s.get_html("/my/courses.php", wait_for=COURSE_LINKS)
         save("my-courses", html)
         courses = parse_courses(html, cfg.base_url)
         print(f"Courses ({len(courses)}):")
@@ -199,7 +236,11 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("config", help="show configuration").set_defaults(func=cmd_config)
 
     args = parser.parse_args(argv)
-    return args.func(args)
+    try:
+        return args.func(args)
+    except KeyboardInterrupt:
+        print("\nStopped. Nothing half-saved; the next run starts from the last complete sync.")
+        return 130
 
 
 if __name__ == "__main__":

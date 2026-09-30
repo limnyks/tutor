@@ -62,11 +62,15 @@ def collect(session: MoodleSession, cfg: Config, old: dict, log: Log) -> dict:
     base = cfg.base_url
     snap = _empty_snapshot()
 
-    _, html = session.get_html("/my/courses.php", wait_for='a[href*="/course/view.php"]')
+    url, html = session.get_html("/my/courses.php", wait_for='a[href*="/course/view.php"]')
     courses = parse_courses(html, base)
     if not courses:
-        _, html = session.get_html("/my/")
+        url, html = session.get_html("/my/", wait_for='a[href*="/course/view.php"]')
         courses = parse_courses(html, base)
+    if not courses:
+        # Maintenance page, a policy to accept, a changed layout...: saving this as the new
+        # state would make every course look new next time. Keep the last good snapshot.
+        raise RuntimeError(f"No courses found on Moodle (page: {url}). Open Moodle in a browser to check.")
     courses = [c for c in courses if not _ignored(cfg, c)]
     log(f"{len(courses)} courses")
 
@@ -84,11 +88,40 @@ def collect(session: MoodleSession, cfg: Config, old: dict, log: Log) -> dict:
             _carry_over(old, snap, cid)
             log(f"  {course['name']}: FAILED {exc!r}")
 
-    _, html = session.get_html("/calendar/view.php?view=upcoming")
-    for ev in parse_upcoming(html, base, default_year=datetime.now().year):
-        snap["deadlines"][str(ev["id"])] = ev
+    try:
+        _, html = session.get_html("/calendar/view.php?view=upcoming")
+        for ev in parse_upcoming(html, base, default_year=datetime.now().year):
+            snap["deadlines"][str(ev["id"])] = ev
+        _keep_events_beyond_cap(old, snap)
+    except LoginRequired:
+        raise
+    except Exception as exc:
+        snap["errors"].append({"calendar": repr(exc)})
+        snap["deadlines"] = dict(old.get("deadlines", {}))
+        log(f"  calendar: FAILED {exc!r} (kept the last known deadlines)")
     log(f"{len(snap['deadlines'])} upcoming events")
     return snap
+
+
+UPCOMING_CAP = 10  # Moodle's "upcoming events" page lists at most this many by default
+
+
+def _keep_events_beyond_cap(old: dict, snap: dict) -> None:
+    """Keep known future events that fell off the end of a full upcoming list.
+
+    When the list is full, a later event pushed out by a new earlier one isn't gone;
+    dropping it would report it as new again when it comes back.
+    """
+    new = snap["deadlines"]
+    if len(new) < UPCOMING_CAP:
+        return
+    whens = [e["when"] for e in new.values() if e.get("when")]
+    if not whens:
+        return
+    last = max(datetime.fromisoformat(w) for w in whens)
+    for eid, ev in old.get("deadlines", {}).items():
+        if eid not in new and ev.get("when") and datetime.fromisoformat(ev["when"]) > last:
+            new[eid] = ev
 
 
 CLOSED_REUSE_DAYS = 14
@@ -257,6 +290,7 @@ def write_status(cfg: Config, result: str, message: str = "", **extra) -> None:
     status.update(last_attempt=now_iso(), result=result, message=message, **extra)
     if result == "ok":
         status["last_success"] = status["last_attempt"]
+        status.pop("traceback", None)
     write_json(cfg.status_path, status)
 
 

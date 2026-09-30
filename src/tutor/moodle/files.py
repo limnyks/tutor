@@ -90,7 +90,8 @@ def save_file(
     known = [k for k, v in manifest.items() if v.get("source_url") == url]
     if head is not None:
         final_url, size = head(url)
-        if known and final_url and final_url == manifest[known[0]].get("final_url"):
+        if known and final_url and final_url == manifest[known[0]].get("final_url") \
+                and _in_place(cfg, manifest[known[0]]):
             return None
         if size and size > limit:
             return _skip_too_large(manifest, course, activity, url, final_url, size)
@@ -102,9 +103,13 @@ def save_file(
     key = file_key(activity["id"], got.filename)
     _rename_if_same_content(cfg, manifest, key, url, digest, course, section, got.filename, activity)
     entry = manifest.get(key)
-    if entry and entry.get("sha256") == digest:
+    if entry and entry.get("sha256") == digest and _in_place(cfg, entry):
         entry["final_url"] = got.final_url
         return None
+    if entry and not _in_place(cfg, entry):
+        # Deleted or moved by hand, or files_dir changed: download it again, as new.
+        del manifest[key]
+        entry = None
 
     if entry and entry.get("path"):
         path = Path(entry["path"])
@@ -135,6 +140,14 @@ def save_file(
         "name": got.filename, "path": str(path), "activity": activity["name"],
         "section": section, "graded": graded, "sha256": digest,
     }, course)
+
+
+def _in_place(cfg: Config, entry: dict) -> bool:
+    """The entry's file still exists, inside the current files_dir."""
+    if entry.get("skipped"):
+        return True  # too-large placeholder: there is no file
+    path = Path(entry.get("path") or "")
+    return path.is_file() and path.is_relative_to(cfg.files_dir)
 
 
 def _rename_if_same_content(cfg, manifest, key, url, digest, course, section, filename, activity) -> None:

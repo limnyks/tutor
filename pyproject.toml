@@ -5,7 +5,7 @@ description = "Personal study tutor: Moodle connector, memory and planning."
 requires-python = ">=3.10"
 dependencies = [
     "playwright>=1.45",
-    "mcp>=1.2",
+    "mcp>=2.0",
     "beautifulsoup4>=4.12",
     "tzdata",
 ]

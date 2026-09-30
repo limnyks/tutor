@@ -196,11 +196,24 @@ def parse_file_links(html: str, base_url: str, scope: str | None = None) -> list
     return list(files.values())
 
 
+_VOLATILE = [
+    (re.compile(r'\s+id="yui_[^"]*"'), ""),              # ids Moodle's JavaScript adds on every load
+    (re.compile(r"sesskey=[A-Za-z0-9]+"), "sesskey="),     # per-session token in links
+]
+
+
+def normalize_html(html: str) -> str:
+    """Remove parts of rendered HTML that differ on every load, so unchanged content compares equal."""
+    for pattern, replacement in _VOLATILE:
+        html = pattern.sub(replacement, html)
+    return html
+
+
 def page_content(html: str) -> str:
-    """The body of a Moodle 'page' activity (lecture notes written in Moodle), as HTML."""
+    """The body of a Moodle 'page' activity (lecture notes written in Moodle), as stable HTML."""
     soup = _soup(html)
     box = soup.select_one("#region-main .box.generalbox, #region-main .no-overflow, [role='main'] .generalbox")
-    return str(box) if box is not None and text_of(box) else ""
+    return normalize_html(str(box)) if box is not None and text_of(box) else ""
 
 
 # --- assignments and quizzes -----------------------------------------------
