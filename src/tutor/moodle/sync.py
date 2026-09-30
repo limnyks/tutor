@@ -60,7 +60,7 @@ def collect(session: MoodleSession, cfg: Config, old: dict, log: Log) -> dict:
     base = cfg.base_url
     snap = _empty_snapshot()
 
-    _, html = session.get_html("/my/courses.php")
+    _, html = session.get_html("/my/courses.php", wait_for='a[href*="/course/view.php"]')
     courses = parse_courses(html, base)
     if not courses:
         _, html = session.get_html("/my/")
@@ -143,7 +143,7 @@ def download_files(
     def save(course, act, url, depth=0):
         try:
             ev = save_file(cfg, manifest, course=course, section=act["section"], activity=act,
-                           url=url, fetch=fetch_file, head=session.head_final_url)
+                           url=url, fetch=fetch_file, head=session.head)
         except _HtmlPage as page:
             # A resource shown inside a page: download the file(s) it links to.
             if depth == 0:

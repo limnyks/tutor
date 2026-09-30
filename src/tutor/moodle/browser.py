@@ -167,8 +167,11 @@ class MoodleSession:
     def _pause(self) -> None:
         time.sleep(self.cfg.request_delay)
 
-    def get_html(self, path_or_url: str) -> tuple[str, str]:
-        """Open a page, wait for it to render, return (final_url, html)."""
+    def get_html(self, path_or_url: str, wait_for: str | None = None) -> tuple[str, str]:
+        """Open a page, wait for it to render, return (final_url, html).
+
+        wait_for: a CSS selector for pages that fill in content with JavaScript.
+        """
         self._pause()
         url = self.cfg.url(path_or_url)
         try:
@@ -181,13 +184,16 @@ class MoodleSession:
             self.page = self.ctx.new_page()
             self.page.goto(url, wait_until="domcontentloaded", timeout=60_000)
         try:
-            self.page.wait_for_load_state("networkidle", timeout=10_000)
+            if wait_for:
+                self.page.wait_for_selector(wait_for, timeout=20_000)
+            else:
+                self.page.wait_for_load_state("networkidle", timeout=3_000)
         except Exception:
-            pass  # some pages keep polling; the DOM is ready anyway
+            pass  # Moodle pages keep polling (messages); the content is there already
         url, html = self.page.url, self.page.content()
         if is_login_page(url, html):
             self._reauthenticate(url, html)
-            return self.get_html(path_or_url)
+            return self.get_html(path_or_url, wait_for)
         return url, html
 
     def _reauthenticate(self, url: str, html: str) -> None:
@@ -222,13 +228,17 @@ class MoodleSession:
         parsed = urlparse(self.page.url)
         return f"{parsed.hostname}{parsed.path}; screenshot: {shot}"
 
-    def head_final_url(self, url: str) -> str | None:
+    def head(self, url: str) -> tuple[str | None, int | None]:
+        """(final URL after redirects, size in bytes) without downloading the file."""
         self._pause()
         try:
             resp = self.ctx.request.head(self.cfg.url(url), timeout=60_000)
         except Exception:
-            return None
-        return resp.url if resp.ok else None
+            return None, None
+        if not resp.ok:
+            return None, None
+        length = resp.headers.get("content-length", "")
+        return resp.url, int(length) if length.isdigit() else None
 
     def fetch(self, url: str) -> Fetched:
         """Download a file with the session's cookies."""

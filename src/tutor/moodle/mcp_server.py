@@ -5,6 +5,7 @@ open Moodle live. Assignment descriptions are never returned: some courses forbi
 assignment conditions into an AI prompt, so only titles, dates and statuses are exposed.
 """
 
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -87,33 +88,52 @@ def moodle_course_contents(course: str) -> dict:
     return {"course": c, "synced_at": snap["synced_at"], "sections": sections}
 
 
+_ACTIVITY_URL = re.compile(r"/mod/(\w+)/view\.php\?(?:.*&)?id=(\d+)")
+_NOT_SUBMITTED = re.compile(r"no submission|not submitted|no attempt|draft|немає|не надіслано|чернетк", re.IGNORECASE)
+
+
+def _activity_key(url: Optional[str]) -> Optional[tuple]:
+    m = _ACTIVITY_URL.search(url or "")
+    return (m.group(1), m.group(2)) if m else None
+
+
 @mcp.tool()
-def moodle_deadlines(days: int = 14) -> list:
-    """Upcoming deadlines in the next `days` days: calendar events plus assignment and quiz due dates."""
+def moodle_deadlines(days: int = 14, overdue_days: int = 7) -> list:
+    """Deadlines in the next `days` days: assignments, quizzes and other calendar events.
+
+    Also lists assignments due in the last `overdue_days` days that were not submitted
+    (marked overdue=true), since some courses accept late work.
+    """
     snap = _snapshot()
     now = datetime.now(timezone.utc)
-    horizon = now + timedelta(days=days)
-    out, seen_urls = [], set()
-
-    for ev in snap["deadlines"].values():
-        when = _parse_iso(ev.get("when"))
-        if when and now <= when <= horizon:
-            out.append({"when": ev["when"], "name": ev["name"], "course": ev.get("course"),
-                        "kind": ev.get("kind"), "url": ev.get("url")})
-            seen_urls.add(ev.get("url"))
+    horizon, past = now + timedelta(days=days), now - timedelta(days=overdue_days)
+    out, seen = [], set()
 
     for key in ("assignments", "quizzes"):
         for item in snap.get(key, {}).values():
-            if item.get("url") in seen_urls:
-                continue
             dates = item.get("dates") or {}
             due = (dates.get("due") or dates.get("closes") or {}).get("iso")
             when = _parse_iso(due)
-            if when and now <= when <= horizon:
-                course = snap["courses"].get(str(item["course_id"]), {})
-                out.append({"when": due, "name": item["name"], "course": course.get("name"),
-                            "kind": key[:-1], "url": item.get("url"),
-                            "submission_status": item.get("submission_status")})
+            if when is None:
+                continue
+            status = item.get("submission_status") or ""
+            overdue = key == "assignments" and past <= when < now and bool(_NOT_SUBMITTED.search(status))
+            if not (now <= when <= horizon or overdue):
+                continue
+            course = snap["courses"].get(str(item["course_id"]), {})
+            out.append({"when": due, "name": item["name"], "course": course.get("name"),
+                        "kind": key[:-1], "url": item.get("url"),
+                        "submission_status": item.get("submission_status"), "overdue": overdue})
+            seen.add(_activity_key(item.get("url")))
+
+    for ev in snap["deadlines"].values():
+        when = _parse_iso(ev.get("when"))
+        key = _activity_key(ev.get("url"))
+        if key is not None and key in seen:
+            continue  # same deadline as an assignment/quiz above
+        if when and now <= when <= horizon:
+            out.append({"when": ev["when"], "name": ev["name"], "course": ev.get("course"),
+                        "kind": ev.get("kind"), "url": ev.get("url"), "overdue": False})
     return sorted(out, key=lambda e: e["when"])
 
 
@@ -173,6 +193,8 @@ def moodle_files(course: Optional[str] = None, query: Optional[str] = None) -> l
     q = (query or "").lower()
     out = []
     for entry in manifest.values():
+        if entry.get("skipped"):
+            continue
         if only is not None and entry["course_id"] != only:
             continue
         if q and q not in entry["path"].lower() and q not in entry["activity"].lower():

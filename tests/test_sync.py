@@ -37,12 +37,15 @@ class FakeSession:
     def __exit__(self, *exc):
         pass
 
-    def get_html(self, path_or_url):
+    def get_html(self, path_or_url, wait_for=None):
         path = path_or_url.replace(BASE, "")
         return BASE + path, self.pages.get(path, "<html><body></body></html>")
 
-    def head_final_url(self, url):
-        return self.files[url][1] if url in self.files else None
+    def head(self, url):
+        if url not in self.files:
+            return None, None
+        body, final = self.files[url]
+        return final, len(body)
 
     def fetch(self, url):
         body, final = self.files[url]
@@ -161,3 +164,60 @@ def test_mcp_tools_hide_assignment_description(cfg, monkeypatch):
 
     with pytest.raises(ValueError):
         mcp_server.moodle_course_contents("Chemistry")
+
+
+def test_same_file_name_in_two_activities_keeps_both(cfg):
+    """Teachers reuse names like 'Lecture.pdf'; neither file may overwrite the other."""
+    FakeSession.files[f"{BASE}/mod/resource/view.php?id=901&redirect=1"] = (
+        b"week1", f"{BASE}/pluginfile.php/1/content/1/Practice 1.pdf")
+    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    folder = cfg.files_dir / "STAT2100 Probability for CS" / "Week 1. Sample spaces"
+    contents = sorted(p.read_bytes() for p in folder.iterdir() if p.is_file())
+    assert contents == [b"hw", b"p1", b"p2", b"week1"]
+
+
+def test_oversized_file_is_reported_once_and_not_downloaded(cfg):
+    cfg.max_file_mb = 0
+    calls = []
+    original = FakeSession.fetch
+    FakeSession.fetch = lambda self, url: calls.append(url) or original(self, url)
+    try:
+        run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+        run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    finally:
+        FakeSession.fetch = original
+    assert calls == []
+    too_large = [e for e in read_events(cfg) if e["type"] == "file_too_large"]
+    assert len(too_large) == 4
+
+
+def test_deadlines_merge_calendar_and_assignment_and_show_overdue(cfg, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from tutor.moodle import mcp_server
+
+    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    monkeypatch.setattr(mcp_server, "_cfg", lambda: cfg)
+    snap = read_json(cfg.snapshot_path, None)
+
+    # Pretend today is 2 days before HOMEWORK 1 is due.
+    due = datetime.fromisoformat(snap["assignments"]["903"]["dates"]["due"]["iso"])
+    monkeypatch.setattr(mcp_server, "datetime", _FrozenDatetime(due - timedelta(days=2)))
+    names = [d["name"] for d in mcp_server.moodle_deadlines(days=14)]
+    assert names.count("Homework 1") == 1 and "Homework 1 is due" not in names
+
+    # Three days after the deadline, still not submitted: shown as overdue.
+    monkeypatch.setattr(mcp_server, "datetime", _FrozenDatetime(due + timedelta(days=3)))
+    overdue = [d for d in mcp_server.moodle_deadlines(days=14) if d["overdue"]]
+    assert [d["name"] for d in overdue] == ["Homework 1"]
+
+
+class _FrozenDatetime:
+    def __init__(self, now):
+        from datetime import datetime
+        self._now, self._real = now, datetime
+
+    def now(self, tz=None):
+        return self._now.astimezone(tz) if tz else self._now
+
+    def fromisoformat(self, value):
+        return self._real.fromisoformat(value)
