@@ -72,9 +72,10 @@ def test_assignment_ukrainian_with_feedback():
 def test_grade_report():
     items = parse_grade_report(page("grades.html"))
     assert items == [
-        {"item": "Homework 1", "grade": "9.00", "range": "0–10", "percentage": "90.00 %",
-         "feedback": "Problem 4: missing justification."},
-        {"item": "Midterm exam", "grade": None, "range": "0–30", "percentage": "-", "feedback": None},
+        {"item": "Homework 1", "type": "Assignment", "grade": "9.00", "range": "0–10", "percentage": "90.00 %",
+         "feedback": "Problem 4: missing justification.", "average": "7.50"},
+        {"item": "Midterm exam", "type": "Quiz", "grade": None, "range": "0–30", "percentage": "-",
+         "feedback": None, "average": None},
     ]
 
 

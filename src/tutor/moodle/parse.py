@@ -128,7 +128,8 @@ def parse_course_page(html: str, course_id: int, base_url: str) -> tuple[list[di
     sections = soup.select("li.section, li[data-for='section']")
     if sections:
         for sec in sections:
-            title = sec.select_one(".sectionname, [data-for='section_title']")
+            title = (sec.select_one("h3.sectionname") or sec.select_one(".sectionname")
+                     or sec.select_one("[data-for='section_title']"))
             section_name = text_of(title) or sec.get("aria-label", "")
             for li in sec.select("li.activity"):
                 act = _parse_activity(li, course_id, section_name, base_url)
@@ -187,18 +188,24 @@ _DATE_LABELS = {
 
 
 def parse_activity_dates(html: str) -> dict:
-    """The 'Opened: … / Due: …' block on assignment and quiz pages."""
+    """The 'Opened: … / Due: …' block on assignment and quiz pages.
+
+    Each label is a <strong>; its value is the text after it in the same row.
+    """
     dates: dict[str, dict] = {}
     block = _soup(html).select_one("[data-region='activity-dates'], .activity-dates")
     if block is None:
         return dates
-    for row in block.find_all("div", recursive=False) or [block]:
-        text = text_of(row)
-        if ":" not in text:
+    for label_tag in block.find_all(["strong", "b"]):
+        label = text_of(label_tag).rstrip(":").strip()
+        value = " ".join(
+            (sib.get_text(" ") if isinstance(sib, Tag) else str(sib)) for sib in label_tag.next_siblings
+        )
+        value = " ".join(value.split())
+        if not label or not value:
             continue
-        label, value = text.split(":", 1)
-        key = _DATE_LABELS.get(label.strip().lower(), label.strip().lower())
-        dates[key] = {"text": value.strip(), "iso": parse_moodle_date(value)}
+        key = _DATE_LABELS.get(label.lower(), label.lower())
+        dates[key] = {"text": value, "iso": parse_moodle_date(value)}
     return dates
 
 
@@ -213,6 +220,15 @@ def _table_pairs(table: Tag | None) -> dict[str, str]:
     return pairs
 
 
+def _activity_name(soup: BeautifulSoup) -> str:
+    for selector in ("#page-header h1", ".page-header-headings h1", "h1", "#region-main h2", "[role='main'] h2"):
+        name = text_of(soup.select_one(selector))
+        if name:
+            return name
+    title = text_of(soup.title)  # "COURSE: Activity name"
+    return title.split(": ", 1)[-1] if title else ""
+
+
 def parse_assignment(html: str, base_url: str) -> dict:
     """Assignment page: name, dates, submission status, feedback, description, attachments.
 
@@ -220,12 +236,11 @@ def parse_assignment(html: str, base_url: str) -> dict:
     (some courses forbid putting assignment conditions into prompts).
     """
     soup = _soup(html)
-    name_tag = soup.select_one("#region-main h2, [role='main'] h2")
     status = _table_pairs(soup.select_one(".submissionstatustable table"))
     feedback = _table_pairs(soup.select_one(".feedback table"))
     description = soup.select_one(".activity-description, #intro")
     return {
-        "name": text_of(name_tag),
+        "name": _activity_name(soup),
         "dates": parse_activity_dates(html),
         "submission_status": status.get("Submission status") or status.get("Статус здачі"),
         "grading_status": status.get("Grading status") or status.get("Статус оцінення"),
@@ -240,10 +255,9 @@ def parse_assignment(html: str, base_url: str) -> dict:
 
 def parse_quiz(html: str) -> dict:
     soup = _soup(html)
-    name_tag = soup.select_one("#region-main h2, [role='main'] h2")
     grade_tag = soup.select_one("#feedback h3, .quizattempt ~ h3")
     return {
-        "name": text_of(name_tag),
+        "name": _activity_name(soup),
         "dates": parse_activity_dates(html),
         "grade": text_of(grade_tag) or None,
     }
@@ -263,12 +277,16 @@ def parse_grade_report(html: str) -> list[dict]:
         if name_cell is None or grade_cell is None:
             continue
         grade = text_of(grade_cell)
+        header = name_cell.select_one(".gradeitemheader")
+        kind = name_cell.select_one(".dimmed_text[title]")
         items.append({
-            "item": text_of(name_cell),
+            "item": text_of(header) if header is not None else text_of(name_cell),
+            "type": kind["title"] if kind is not None else None,
             "grade": None if grade in ("", "-", "–") else grade,
             "range": text_of(tr.select_one(".column-range")) or None,
             "percentage": text_of(tr.select_one(".column-percentage")) or None,
             "feedback": text_of(tr.select_one(".column-feedback")) or None,
+            "average": text_of(tr.select_one("td.column-average")) or None,
         })
     return items
 
