@@ -11,7 +11,7 @@ from pathlib import Path
 
 from ..moodle.config import Config
 from ..moodle.dates import KYIV
-from ..moodle.queries import parse_iso, upcoming_deadlines
+from ..moodle.queries import parse_iso, points_lost, upcoming_deadlines
 from . import events as event_log
 from .catalog import Course, load_catalog
 from .knowledge import build
@@ -37,6 +37,12 @@ def _course_label(catalog: dict[str, Course], moodle_id, fallback: str | None) -
         if c.moodle_id is not None and str(c.moodle_id) == str(moodle_id):
             return c.code
     return (fallback or "?")[:40]
+
+
+def _lost_text(grade: dict) -> str:
+    """The student gets feedback, never points: say only whether points were lost."""
+    return {True: "points lost (use moodle_grades and the feedback to find out where)",
+            False: "nothing lost", None: "check moodle_grades"}[points_lost(grade)]
 
 
 def build_briefing(cfg: Config, now: datetime | None = None) -> str:
@@ -85,8 +91,8 @@ def build_briefing(cfg: Config, now: datetime | None = None) -> str:
             label = _course_label(catalog, e.get("course_id"), e.get("course"))
             d = e.get("data", {})
             what = {
-                "new_grade": lambda: f"new grade: {d.get('item')} = {d.get('grade')} ({d.get('range') or ''})",
-                "grade_changed": lambda: f"grade changed: {d.get('item')} {d.get('old')} → {d.get('grade')}",
+                "new_grade": lambda: f"graded: {d.get('item')} — {_lost_text(d)}",
+                "grade_changed": lambda: f"grade changed: {d.get('item')} — {_lost_text(d)}",
                 "new_feedback": lambda: f"teacher feedback on {d.get('item')}: {str(d.get('feedback'))[:200]}",
                 "new_activity": lambda: f"new {d.get('kind')}: {d.get('name')}",
                 "new_file": lambda: f"new file: {d.get('name')}" + (" (graded work — not for AI)" if d.get("graded") else ""),

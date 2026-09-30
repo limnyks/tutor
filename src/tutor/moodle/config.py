@@ -25,6 +25,8 @@ class Config:
     max_file_mb: int = 200
     # Course ids or name fragments to skip entirely.
     courses_ignore: list[str] = field(default_factory=list)
+    # Hours [start, end) with no notifications; alerts wait for the first sync after. null = never quiet.
+    notify_quiet_hours: list[int] | None = field(default_factory=lambda: [23, 8])
 
     @property
     def host(self) -> str:

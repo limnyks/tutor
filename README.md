@@ -122,6 +122,20 @@ Claude live Moodle tools.
 - **Assignment conditions stay local.** They're saved on the Mac but never returned
   to Claude, because some courses forbid putting them into an AI prompt.
 
+## Notifications
+
+After each background sync the Mac shows a notification for:
+- a deadline within 48 h and again within 24 h (not for submitted assignments);
+- a grade: only whether points were lost, never the points — ask the tutor what to fix;
+- teacher feedback, a new assignment or quiz, a moved deadline, an announcement.
+
+Each is sent once. More than 3 at a time are grouped into one. Between 23:00 and 08:00
+nothing is shown; those wait for the first sync after 08:00. Change the hours with
+`"notify_quiet_hours": [23, 8]` in `~/.tutor/config.json` (`null` = no quiet hours).
+
+Check once: `tutor notify-test`. If nothing shows up: System Settings → Notifications →
+Script Editor → Allow notifications.
+
 ## Memory (the tutor-memory repo)
 
 The tutor's memory lives in a separate private repo, `limnyks/tutor-memory`: the course

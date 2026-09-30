@@ -338,6 +338,11 @@ def run_sync(cfg: Config, *, download: bool = True, full_files: bool | None = No
         events = diff_snapshots(old, snap) + file_events
         write_json(cfg.snapshot_path, snap)
         append_events(cfg, events)
+        try:
+            from .alerts import send_alerts
+            send_alerts(cfg, events, snap, datetime.now(timezone.utc))
+        except Exception as exc:  # a failed notification must never fail the sync
+            log(f"Notifications failed: {exc}")
         if cfg.state_dir and (cfg.state_dir / "courses").exists():
             from ..memory.gitsync import publish_snapshot, sync as memory_sync
             publish_snapshot(snap, cfg.state_dir)

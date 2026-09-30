@@ -260,10 +260,19 @@ def cmd_tutor_mcp(args) -> int:
     return 0
 
 
+def cmd_notify_test(args) -> int:
+    from .moodle.browser import notify
+
+    notify("Tutor", "Test: notifications work")
+    print("Sent a test notification. If nothing appeared: System Settings → Notifications →\n"
+          "Script Editor → Allow notifications (macOS files osascript's alerts under Script Editor).")
+    return 0
+
+
 def cmd_config(args) -> int:
     cfg = load_config()
     print(f"Config file: {config_path()}{'' if config_path().exists() else ' (not created; using defaults)'}")
-    for key in ("base_url", "files_dir", "state_dir", "google_account", "lang", "courses_ignore"):
+    for key in ("base_url", "files_dir", "state_dir", "google_account", "lang", "courses_ignore", "notify_quiet_hours"):
         print(f"  {key}: {getattr(cfg, key)}")
     return 0
 
@@ -289,6 +298,7 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_schedule)
     sub.add_parser("moodle-mcp", help="run the Moodle connector (MCP, stdio)").set_defaults(func=cmd_mcp)
     sub.add_parser("config", help="show configuration").set_defaults(func=cmd_config)
+    sub.add_parser("notify-test", help="send a test macOS notification").set_defaults(func=cmd_notify_test)
     p = sub.add_parser("memory-init", help="use a tutor-memory checkout as the tutor's memory")
     p.add_argument("path", nargs="?", default="~/tutor-memory")
     p.set_defaults(func=cmd_memory_init)

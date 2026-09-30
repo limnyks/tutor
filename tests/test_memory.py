@@ -114,7 +114,8 @@ def test_briefing_has_deadlines_changes_and_work_due(mem):
 
     text = build_briefing(mem, now=now)
     assert "Sat 03 Oct 23:59 · STAT2100 · HOMEWORK 1 — No submissions" in text
-    assert "MATH252: new grade: Quiz 4 = 1.50" in text
+    assert "MATH252: graded: Quiz 4 — points lost" in text
+    assert "1.50" not in text and "0–2" not in text  # feedback, never points
     assert "review due: Total probability theorem and Bayes' theorem" in text
     assert "last lesson" in text and "swapped P(A|B)" in text
     assert "No lessons, answers or study reports recorded yet for: CS240, CS310, MATH115, MATH252." in text

@@ -6,7 +6,7 @@ import re
 from datetime import datetime, timedelta
 
 _ACTIVITY_URL = re.compile(r"/mod/(\w+)/view\.php\?(?:.*&)?id=(\d+)")
-_NOT_SUBMITTED = re.compile(r"no submission|not submitted|no attempt|draft|немає|не надіслано|чернетк", re.IGNORECASE)
+NOT_SUBMITTED = re.compile(r"no submission|not submitted|no attempt|draft|немає|не надіслано|чернетк", re.IGNORECASE)
 
 
 def parse_iso(value: str | None) -> datetime | None:
@@ -35,7 +35,7 @@ def upcoming_deadlines(snap: dict, now: datetime, days: int = 14, overdue_days: 
             if when is None:
                 continue
             status = item.get("submission_status") or ""
-            overdue = key == "assignments" and past <= when < now and bool(_NOT_SUBMITTED.search(status))
+            overdue = key == "assignments" and past <= when < now and bool(NOT_SUBMITTED.search(status))
             if not (now <= when <= horizon or overdue):
                 continue
             course = snap["courses"].get(str(item["course_id"]), {})
@@ -54,3 +54,32 @@ def upcoming_deadlines(snap: dict, now: datetime, days: int = 14, overdue_days: 
                         "course_id": ev.get("course_id"), "kind": ev.get("kind"), "url": ev.get("url"),
                         "overdue": False})
     return sorted(out, key=lambda e: e["when"])
+
+
+_NUMBER = re.compile(r"-?\d+(?:[.,]\d+)?")
+
+
+def _num(text: str) -> float | None:
+    m = _NUMBER.search(text or "")
+    return float(m.group().replace(",", ".")) if m else None
+
+
+def points_lost(grade: dict) -> bool | None:
+    """True if the grade is below full marks, False if full, None if it can't be told.
+
+    Used instead of showing numbers: the student asked for feedback, never points.
+    """
+    pct = _num(grade.get("percentage") or "")
+    if pct is not None:
+        return pct < 99.5
+    text = grade.get("grade") or ""
+    if "/" in text:  # "9.00 / 10.00" (assignment pages show grades this way)
+        text, _, rng = text.partition("/")
+    else:
+        rng = grade.get("range") or ""
+    value = _num(text)
+    numbers = [float(n.replace(",", ".")) for n in _NUMBER.findall(rng)]
+    if value is None or not numbers:
+        return None
+    top = max(numbers)
+    return top > 0 and value < top - 1e-9

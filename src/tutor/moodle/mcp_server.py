@@ -10,7 +10,7 @@ from typing import Optional
 
 from .browser import LoginRequired
 from .config import load_config
-from .queries import upcoming_deadlines
+from .queries import upcoming_deadlines, points_lost
 from .store import read_events, read_json
 from .sync import run_download, run_sync
 
@@ -87,11 +87,15 @@ def moodle_deadlines(days: int = 14, overdue_days: int = 7) -> list:
 
 
 def moodle_grades(course: Optional[str] = None) -> dict:
-    """Grade items with points, range, percentage and teacher feedback. All courses if none given."""
+    """Grade items with points, range, percentage, teacher feedback and `points_lost`.
+    All courses if none given.
+
+    For the tutor's reasoning only: never quote points, percentages or scales to the student.
+    Turn them into feedback: what was lost, why, and what to do differently next time."""
     snap = _snapshot()
     courses = [_find_course(snap, course)] if course else list(snap["courses"].values())
     return {
-        c["name"]: list(snap["grades"].get(str(c["id"]), {}).values())
+        c["name"]: [{**g, "points_lost": points_lost(g)} for g in snap["grades"].get(str(c["id"]), {}).values()]
         for c in courses
     }
 
