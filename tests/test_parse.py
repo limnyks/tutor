@@ -40,7 +40,7 @@ def test_courses_skip_site_home_and_hidden_labels():
 def test_course_page_sections_activities_and_section_links():
     acts, sections = parse_course_page(page("course.html"), 57, BASE)
     by_id = {a["id"]: a for a in acts}
-    assert set(by_id) == {900, 901, 902, 903, 904}
+    assert set(by_id) == {900, 901, 902, 903, 904, 905}
     assert by_id[901] == {
         "id": 901, "course_id": 57, "section": "Week 1. Sample spaces", "kind": "resource",
         "name": "Lecture 1 slides", "url": f"{BASE}/mod/resource/view.php?id=901",

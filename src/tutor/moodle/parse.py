@@ -196,6 +196,13 @@ def parse_file_links(html: str, base_url: str, scope: str | None = None) -> list
     return list(files.values())
 
 
+def page_content(html: str) -> str:
+    """The body of a Moodle 'page' activity (lecture notes written in Moodle), as HTML."""
+    soup = _soup(html)
+    box = soup.select_one("#region-main .box.generalbox, #region-main .no-overflow, [role='main'] .generalbox")
+    return str(box) if box is not None and text_of(box) else ""
+
+
 # --- assignments and quizzes -----------------------------------------------
 
 _DATE_LABELS = {

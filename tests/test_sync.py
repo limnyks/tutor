@@ -64,12 +64,14 @@ def cfg(tmp_path):
         "/mod/forum/view.php?id=900": page("forum.html"),
         "/grade/report/user/index.php?id=57": page("grades.html"),
         "/calendar/view.php?view=upcoming": page("upcoming.html"),
+        "/mod/page/view.php?id=905": page("page.html"),
     }
     FakeSession.files = {
         f"{BASE}/mod/resource/view.php?id=901&redirect=1": (b"slides-v1", f"{BASE}/pluginfile.php/1/content/1/Lecture1.pdf"),
         f"{BASE}/pluginfile.php/888/mod_folder/content/3/Practice%201.pdf?forcedownload=1": (b"p1", f"{BASE}/pluginfile.php/888/mod_folder/content/3/Practice 1.pdf"),
         f"{BASE}/pluginfile.php/888/mod_folder/content/3/Practice%202.pdf?forcedownload=1": (b"p2", f"{BASE}/pluginfile.php/888/mod_folder/content/3/Practice 2.pdf"),
         f"{BASE}/pluginfile.php/777/mod_assign/introattachment/0/HW1.pdf?forcedownload=1": (b"hw", f"{BASE}/pluginfile.php/777/HW1.pdf"),
+        f"{BASE}/pluginfile.php/999/mod_page/content/2/er-diagram.png": (b"png", f"{BASE}/pluginfile.php/999/mod_page/content/2/er-diagram.png"),
     }
     return Config(home=tmp_path / "home", files_dir=tmp_path / "files", state_dir=tmp_path / "state",
                   request_delay=0)
@@ -91,7 +93,9 @@ def test_first_sync_downloads_files_and_logs_baseline(cfg):
     assert hw["graded"] is True
 
     types = [e["type"] for e in read_events(cfg)]
-    assert types[0] == "baseline" and types.count("new_file") == 4
+    assert types[0] == "baseline" and types.count("new_file") == 6  # 4 files + page text + its image
+    lecture = cfg.files_dir / "STAT2100 Probability for CS" / "Week 1. Sample spaces" / "Lecture 1 — Introduction.html"
+    assert "A DBMS manages data." in lecture.read_text()
     # Mirrored into the tutor-state repo.
     assert list((cfg.state_dir / "events").glob("*.mac-moodle.jsonl"))
     assert read_json(cfg.status_path, {})["result"] == "ok"
@@ -141,7 +145,7 @@ def test_login_expired_is_recorded(cfg):
 def test_download_single_course(cfg):
     run_sync(cfg, download=False, log=lambda _: None, session_cls=FakeSession)
     events = run_download(cfg, 57, log=lambda _: None, session_cls=FakeSession)
-    assert len(events) == 4
+    assert len(events) == 6
 
 
 def test_mcp_tools_hide_assignment_description(cfg, monkeypatch):
@@ -173,7 +177,7 @@ def test_same_file_name_in_two_activities_keeps_both(cfg):
     run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
     folder = cfg.files_dir / "STAT2100 Probability for CS" / "Week 1. Sample spaces"
     contents = sorted(p.read_bytes() for p in folder.iterdir() if p.is_file())
-    assert contents == [b"hw", b"p1", b"p2", b"week1"]
+    assert sorted(c for c in contents if not c.startswith(b"<!doctype")) == [b"hw", b"p1", b"p2", b"png", b"week1"]
 
 
 def test_oversized_file_is_reported_once_and_not_downloaded(cfg):
@@ -188,7 +192,7 @@ def test_oversized_file_is_reported_once_and_not_downloaded(cfg):
         FakeSession.fetch = original
     assert calls == []
     too_large = [e for e in read_events(cfg) if e["type"] == "file_too_large"]
-    assert len(too_large) == 4
+    assert len(too_large) == 6
 
 
 def test_deadlines_merge_calendar_and_assignment_and_show_overdue(cfg, monkeypatch):

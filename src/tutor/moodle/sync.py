@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import traceback
+from html import escape
 from datetime import datetime
 from typing import Callable
 
@@ -17,6 +18,7 @@ from .parse import (
     parse_courses,
     parse_file_links,
     parse_forum,
+    page_content,
     parse_grade_report,
     parse_quiz,
     parse_upcoming,
@@ -122,6 +124,11 @@ def _collect_course(session: MoodleSession, cfg: Config, course: dict, snap: dic
     snap["grades"][str(cid)] = {g["item"]: g for g in parse_grade_report(html)}
 
 
+def _standalone_html(title: str, content: str) -> bytes:
+    return (f'<!doctype html><meta charset="utf-8"><title>{escape(title)}</title>'
+            f"<h1>{escape(title)}</h1>\n{content}\n").encode("utf-8")
+
+
 class _HtmlPage(Exception):
     def __init__(self, html: str):
         self.html = html
@@ -164,6 +171,21 @@ def download_files(
                 save(course, act, f"{act['url']}{sep}redirect=1")
             elif act["kind"] == "folder":
                 _, html = session.get_html(act["url"])
+                for link in parse_file_links(html, cfg.base_url, MAIN_REGION):
+                    save(course, act, link["url"])
+            elif act["kind"] == "page":
+                # Lecture notes written directly in Moodle: keep the text, plus files inside it.
+                _, html = session.get_html(act["url"])
+                content = page_content(html)
+                if content:
+                    doc = _standalone_html(act["name"], content)
+                    ev = save_file(cfg, manifest, course=course, section=act["section"], activity=act,
+                                   url=act["url"], fetch=lambda _url, d=doc, a=act: Fetched(
+                                       body=d, filename=f"{a['name']}.html",
+                                       content_type="text/html", final_url=a["url"]))
+                    if ev:
+                        events.append(ev)
+                        log(f"  page: {ev['data']['path']}")
                 for link in parse_file_links(html, cfg.base_url, MAIN_REGION):
                     save(course, act, link["url"])
             elif act["kind"] == "assign":
