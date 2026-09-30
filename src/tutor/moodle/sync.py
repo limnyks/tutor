@@ -74,7 +74,8 @@ def collect(session: MoodleSession, cfg: Config, old: dict, log: Log) -> dict:
         cid = course["id"]
         snap["courses"][str(cid)] = course
         try:
-            _collect_course(session, cfg, course, snap)
+            log(f"  {course['name']}…")
+            _collect_course(session, cfg, course, snap, log)
             log(f"  {course['name']}: ok")
         except LoginRequired:
             raise
@@ -90,7 +91,7 @@ def collect(session: MoodleSession, cfg: Config, old: dict, log: Log) -> dict:
     return snap
 
 
-def _collect_course(session: MoodleSession, cfg: Config, course: dict, snap: dict) -> None:
+def _collect_course(session: MoodleSession, cfg: Config, course: dict, snap: dict, log: Log = print) -> None:
     base, cid = cfg.base_url, course["id"]
     _, html = session.get_html(course["url"])
     activities, section_urls = parse_course_page(html, cid, base)
@@ -102,8 +103,15 @@ def _collect_course(session: MoodleSession, cfg: Config, course: dict, snap: dic
                 activities.append(act)
                 seen.add(act["id"])
 
+    to_open = [a for a in activities if a["kind"] in ("assign", "quiz")
+               or (a["kind"] == "forum" and ANNOUNCEMENT_FORUM.search(a["name"]))]
+    log(f"    {len(activities)} activities, {len(to_open)} pages to open")
+    opened = 0
     for act in activities:
         snap["activities"][str(act["id"])] = act
+        if act in to_open:
+            opened += 1
+            log(f"    [{opened}/{len(to_open)}] {act['kind']}: {act['name']}")
         if act["kind"] == "assign":
             _, html = session.get_html(act["url"])
             info = parse_assignment(html, base)
@@ -161,6 +169,10 @@ def download_files(
             events.append(ev)
             log(f"  {'updated' if ev['type'] == 'file_updated' else 'new'}: {ev['data']['path']}")
 
+    candidates = [a for a in snap["activities"].values()
+                  if a["kind"] in ("resource", "folder", "page", "assign")
+                  and (course_id is None or a["course_id"] == course_id)]
+    log(f"Checking files for {len(candidates)} activities (new files are listed as they download)")
     for act in snap["activities"].values():
         if course_id is not None and act["course_id"] != course_id:
             continue
