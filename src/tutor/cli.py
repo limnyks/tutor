@@ -260,6 +260,27 @@ def cmd_tutor_mcp(args) -> int:
     return 0
 
 
+def cmd_plan(args) -> int:
+    from .memory import tools
+
+    try:
+        plan = tools.plan_week([], start=args.start, days=args.days)
+    except (RuntimeError, ValueError) as exc:
+        print(exc)
+        return 1
+    last = None
+    for b in plan["blocks"]:
+        day = b["start"][:10]
+        if day != last:
+            print(f"\n{day}")
+            last = day
+        print(f"  {b['start'][11:16]}–{b['end'][11:16]}  {b['title']}  {b['details']}")
+    for w in plan["warnings"]:
+        print(f"! {w}")
+    print("\n(Calendar events are not read here; in Claude the plan also avoids them.)")
+    return 0
+
+
 def cmd_notify_test(args) -> int:
     from .moodle.browser import notify
 
@@ -298,6 +319,10 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_schedule)
     sub.add_parser("moodle-mcp", help="run the Moodle connector (MCP, stdio)").set_defaults(func=cmd_mcp)
     sub.add_parser("config", help="show configuration").set_defaults(func=cmd_config)
+    p = sub.add_parser("plan", help="print a study plan draft (without calendar events)")
+    p.add_argument("--start", help="YYYY-MM-DD (default today)")
+    p.add_argument("--days", type=int)
+    p.set_defaults(func=cmd_plan)
     sub.add_parser("notify-test", help="send a test macOS notification").set_defaults(func=cmd_notify_test)
     p = sub.add_parser("memory-init", help="use a tutor-memory checkout as the tutor's memory")
     p.add_argument("path", nargs="?", default="~/tutor-memory")

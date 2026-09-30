@@ -11,7 +11,8 @@ from datetime import datetime, timedelta
 
 from .browser import notify
 from .config import Config
-from .queries import NOT_SUBMITTED, points_lost, upcoming_deadlines
+from .dates import KYIV
+from .queries import NOT_SUBMITTED, deadline_title, points_lost, upcoming_deadlines
 from .store import read_json, write_json
 
 MAX_SEPARATE = 3
@@ -59,9 +60,9 @@ def _deadline_alerts(snap: dict, now: datetime, sent: dict) -> list[tuple[str, s
         for limit, tag in DEADLINE_THRESHOLDS:
             if hours <= limit:
                 if not any(f"{base}:{t}" in sent for lim, t in DEADLINE_THRESHOLDS if lim <= limit):
-                    when = datetime.fromisoformat(item["when"]).astimezone().strftime("%a %H:%M")
+                    when = datetime.fromisoformat(item["when"]).astimezone(KYIV).strftime("%a %H:%M")
                     out.append((f"{base}:{tag}",
-                                f"{_code(item.get('course'))}: {item['name']} — due {when} (in {hours:.0f} h)"))
+                                f"{_code(item.get('course'))}: {deadline_title(item['name'])} — due {when} (in {hours:.0f} h)"))
                 break
     return out
 

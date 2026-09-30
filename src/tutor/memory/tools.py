@@ -1,7 +1,7 @@
 """Memory tools for Claude. Every write is validated against the course catalog, so the
 log only ever holds real courses and topics."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 from ..moodle.config import load_config
@@ -64,15 +64,52 @@ def log_summary(course: str, topics: list[str], summary: str,
     return f"summary recorded for {c.code}: {', '.join(ids)}"
 
 
-def log_study(course: str, topics: list[str], minutes: int = 0, stuck_on: str = "", note: str = "") -> str:
+def log_study(course: str, topics: list[str], minutes: int = 0, stuck_on: str = "", note: str = "",
+              assignment: str = "") -> str:
     """Record self-study the student reports (outside lessons). Not evidence of knowing:
-    the topics get a quick check next time."""
+    the topics get a quick check next time.
+
+    assignment: the Moodle assignment/quiz name when the time went into graded work; the minutes
+    then count against that deadline's planned work (topics may be empty)."""
     _, mem, catalog = _memory()
     c = find_course(catalog, course)
     ids = [c.topic(t).id for t in topics]
     event_log.append(mem, "study", {"topics": ids, "minutes": int(minutes), "stuck_on": stuck_on[:300],
-                                    "note": note[:500]}, c.slug)
-    return f"study recorded for {c.code}: {', '.join(ids)}"
+                                    "note": note[:500], "assignment": assignment[:200],
+                                    "course_code": c.code}, c.slug)
+    return f"study recorded for {c.code}: {', '.join(ids) or assignment}"
+
+
+def _plan_days(start: date) -> int:
+    """Through the coming Sunday; on Sunday, through next Sunday."""
+    return 8 if start.weekday() == 6 else 7 - start.weekday()
+
+
+def plan_week(busy: list[dict], start: Optional[str] = None, days: Optional[int] = None) -> dict:
+    """Propose study blocks: Sunday test/reviews, work on Moodle deadlines, lessons.
+
+    busy: every timed calendar event in the period as {"start": ISO, "end": ISO} (all calendars;
+    leave out all-day events and the tutor's own "tutor-plan" events, which get replaced).
+    start: YYYY-MM-DD, default today (Kyiv). days: default through the coming Sunday.
+    Returns blocks, minutes per course and warnings (work that does not fit)."""
+    from ..moodle.dates import KYIV
+    from .briefing import load_snapshot
+    from .plan import make_plan
+    cfg, mem, catalog = _memory()
+    now = datetime.now(timezone.utc)
+    first = date.fromisoformat(start) if start else now.astimezone(KYIV).date()
+    return make_plan(mem, catalog, event_log.read_all(mem), load_snapshot(cfg), busy, first,
+                     days or _plan_days(first), now)
+
+
+def plan_save(blocks: list[dict]) -> str:
+    """Record the plan as written to the calendar: the blocks from plan_week, each with the
+    calendar `event_id` it got. The briefing shows today's part; the next re-plan replaces it."""
+    _, mem, _ = _memory()
+    keep = ("start", "end", "kind", "course", "title", "details", "event_id")
+    clean = [{k: b.get(k) for k in keep} for b in blocks]
+    event_log.append(mem, "plan", {"blocks": clean})
+    return f"plan saved: {len(clean)} blocks"
 
 
 def memory_history(course: str, topic: Optional[str] = None, limit: int = 20) -> list:
@@ -93,4 +130,5 @@ def memory_history(course: str, topic: Optional[str] = None, limit: int = 20) ->
     return out
 
 
-ALL = [memory_briefing, memory_topics, log_answer, log_summary, log_study, memory_history]
+ALL = [memory_briefing, memory_topics, log_answer, log_summary, log_study, memory_history,
+       plan_week, plan_save]

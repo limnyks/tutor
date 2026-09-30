@@ -8,6 +8,14 @@ from datetime import datetime, timedelta
 _ACTIVITY_URL = re.compile(r"/mod/(\w+)/view\.php\?(?:.*&)?id=(\d+)")
 NOT_SUBMITTED = re.compile(r"no submission|not submitted|no attempt|draft|немає|не надіслано|чернетк", re.IGNORECASE)
 
+_DEADLINE_WORDS = re.compile(r"^(строк|термін)\s+|\s+(is due|closes|opens|спливає|закривається|відкривається)$",
+                             re.IGNORECASE)
+
+
+def deadline_title(name: str) -> str:
+    """'Строк Assignment 1 спливає' / 'Lab 1 is due' -> the activity's own name."""
+    return _DEADLINE_WORDS.sub("", _DEADLINE_WORDS.sub("", name.strip())).strip()
+
 
 def parse_iso(value: str | None) -> datetime | None:
     try:

@@ -136,6 +136,29 @@ nothing is shown; those wait for the first sync after 08:00. Change the hours wi
 Check once: `tutor notify-test`. If nothing shows up: System Settings → Notifications →
 Script Editor → Allow notifications.
 
+## Study plan (Google Calendar)
+
+The tutor plans your week on Sunday and re-plans the rest of it at the first session of
+each day. It reads your busy time with Claude's Google Calendar connector, then fills the free
+time in this order:
+1. Sunday: weekly test, week review, and a month review on the last Sunday of the month.
+2. Your own work on Moodle deadlines, earliest due first, finished a day before the deadline.
+   Work due after the plan gets its share now.
+3. Lessons, most-needed course first, one lesson per course a day.
+
+The blocks go into your main Google Calendar (color "Sage", 10-minute reminder). Each one has
+`tutor-plan` in its description; the tutor only ever deletes events carrying that marker.
+
+- Day windows, daily maximum, block length, effort per assignment, course weights:
+  `plan/settings.json` in tutor-memory.
+- Your classes: `plan/timetable.json` (the tutor treats them as busy).
+- Tell the tutor how much you did on an assignment ("2 h on CS310 Assignment 1"), so the
+  plan stops re-planning finished work.
+- `tutor plan` prints a draft in Terminal (without reading the calendar).
+
+Claude Code gets the Google Calendar connector from your claude.ai account. Check with
+`/mcp` that it's listed.
+
 ## Memory (the tutor-memory repo)
 
 The tutor's memory lives in a separate private repo, `limnyks/tutor-memory`: the course

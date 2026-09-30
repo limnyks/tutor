@@ -81,6 +81,23 @@ def build_briefing(cfg: Config, now: datetime | None = None) -> str:
                    f"{d['name']}{status_txt}")
     out.append("")
 
+    # Today's plan (the latest saved plan)
+    plans = [e for e in log if e.get("type") == "plan"]
+    if plans:
+        today_blocks = [b for b in plans[-1]["data"].get("blocks", [])
+                        if (parse_iso(b.get("start")) or now).astimezone(KYIV).date() == today]
+        out.append(f"## Today's plan (saved {_local(plans[-1]['ts'])})")
+        for b in today_blocks:
+            start, end = parse_iso(b["start"]), parse_iso(b["end"])
+            out.append(f"- {start.astimezone(KYIV):%H:%M}–{end.astimezone(KYIV):%H:%M} {b['title']}"
+                       + (f" — {b['details']}" if b.get("details") else ""))
+        if not today_blocks:
+            out.append("- nothing planned today")
+        out.append("")
+    else:
+        out.append("No study plan yet: make one with plan_week.")
+        out.append("")
+
     # Recent Moodle changes (72 h)
     cutoff = (now - timedelta(hours=72)).isoformat()
     recent = [e for e in log if e.get("ts", "") >= cutoff and e.get("type") not in event_log.MEMORY_TYPES
