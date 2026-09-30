@@ -62,23 +62,45 @@ def oauth_login_url(html: str, base_url: str) -> str | None:
 # --- courses ---------------------------------------------------------------
 
 def parse_courses(html: str, base_url: str) -> list[dict]:
-    """Enrolled courses from /my/courses.php (or any page linking to course/view.php)."""
+    """Enrolled courses from /my/courses.php (or any page linking to course/view.php).
+
+    A course card links to its course more than once (name, image, category badge), so
+    the name comes from the course-name link; other links only add courses not seen yet.
+    """
     courses: dict[int, dict] = {}
-    for link in _soup(html).select('a[href*="/course/view.php"]'):
+    links = _soup(html).select('a[href*="/course/view.php"]')
+    named = [link for link in links if "coursename" in (link.get("class") or []) or link.select_one(".multiline")]
+    others = [link for link in links if link not in named]
+    for link in named + others:
         m = _COURSE_LINK.search(link["href"])
         if not m or "section=" in link["href"]:
             continue
         course_id = int(m.group(1))
-        name = text_of(link.select_one(".multiline") or link)
-        if course_id == 1 or not name:  # id 1 is the site front page
+        name = _full_course_name(link) or text_of(link.select_one(".multiline") or link)
+        if course_id == 1 or not name or course_id in courses:  # id 1 is the site front page
             continue
-        if course_id not in courses or len(name) > len(courses[course_id]["name"]):
-            courses[course_id] = {
-                "id": course_id,
-                "name": name,
-                "url": urljoin(base_url, f"/course/view.php?id={course_id}"),
-            }
+        courses[course_id] = {
+            "id": course_id,
+            "name": name,
+            "url": urljoin(base_url, f"/course/view.php?id={course_id}"),
+        }
     return sorted(courses.values(), key=lambda c: c["name"])
+
+
+_ACTIONS_LABEL = re.compile(r"^(?:Actions for current course|Дії для поточного курсу)\s+(.+)$")
+
+
+def _full_course_name(link: Tag) -> str | None:
+    """Cards shorten long names with '...'; the card's actions menu label has the full one."""
+    card = link.find_parent(attrs={"data-region": "course-content"}) or link.find_parent(class_="card")
+    if card is None:
+        return None
+    for label in card.select(".coursemenubtn .sr-only, .coursemenubtn [title]"):
+        text = label.get("title") if label.name == "i" else label.get_text(" ")
+        m = _ACTIONS_LABEL.match(" ".join((text or "").split()))
+        if m:
+            return m.group(1)
+    return None
 
 
 def _activity_kind(li: Tag) -> str:

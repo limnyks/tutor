@@ -107,7 +107,13 @@ def cmd_inspect(args) -> int:
             print(f"No courses parsed. Saved page: {out}/my-courses.html")
             return 1
 
-        course = next((c for c in courses if args.course and args.course.lower() in c["name"].lower()), courses[0])
+        course = courses[0]
+        if args.course:
+            matches = [c for c in courses if args.course.lower() in c["name"].lower() or args.course == str(c["id"])]
+            if not matches:
+                print(f"\nNo course matches '{args.course}'.")
+                return 1
+            course = matches[0]
         _, html = s.get_html(course["url"])
         save("course", html)
         acts, sections = parse_course_page(html, course["id"], cfg.base_url)
