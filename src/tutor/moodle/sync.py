@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import traceback
 from html import escape
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Callable
 
 from .browser import LoginRequired, MoodleSession, notify
@@ -75,7 +75,7 @@ def collect(session: MoodleSession, cfg: Config, old: dict, log: Log) -> dict:
         snap["courses"][str(cid)] = course
         try:
             log(f"  {course['name']}…")
-            _collect_course(session, cfg, course, snap, log)
+            _collect_course(session, cfg, course, snap, log, old)
             log(f"  {course['name']}: ok")
         except LoginRequired:
             raise
@@ -91,7 +91,26 @@ def collect(session: MoodleSession, cfg: Config, old: dict, log: Log) -> dict:
     return snap
 
 
-def _collect_course(session: MoodleSession, cfg: Config, course: dict, snap: dict, log: Log = print) -> None:
+CLOSED_REUSE_DAYS = 14
+
+
+def _closed_long_ago(item: dict | None, now: datetime) -> bool:
+    """An assignment/quiz whose due/close date is over CLOSED_REUSE_DAYS days past.
+
+    Its page no longer changes in ways we track here; new grades and feedback for it
+    still arrive through the course grade report, which is read on every sync.
+    """
+    if not item:
+        return False
+    dates = item.get("dates") or {}
+    iso = (dates.get("due") or dates.get("closes") or dates.get("cutoff") or {}).get("iso")
+    if not iso:
+        return False
+    return datetime.fromisoformat(iso) < now - timedelta(days=CLOSED_REUSE_DAYS)
+
+
+def _collect_course(session: MoodleSession, cfg: Config, course: dict, snap: dict,
+                    log: Log = print, old: dict | None = None) -> None:
     base, cid = cfg.base_url, course["id"]
     _, html = session.get_html(course["url"])
     activities, section_urls = parse_course_page(html, cid, base)
@@ -103,11 +122,26 @@ def _collect_course(session: MoodleSession, cfg: Config, course: dict, snap: dic
                 activities.append(act)
                 seen.add(act["id"])
 
-    to_open = [a for a in activities if a["kind"] in ("assign", "quiz")
-               or (a["kind"] == "forum" and ANNOUNCEMENT_FORUM.search(a["name"]))]
-    log(f"    {len(activities)} activities, {len(to_open)} pages to open")
+    old = old or {}
+    now = datetime.now(timezone.utc)
+    reused = 0
+    for act in activities:
+        store = {"assign": "assignments", "quiz": "quizzes"}.get(act["kind"])
+        prev = old.get(store, {}).get(str(act["id"])) if store else None
+        if prev is not None and _closed_long_ago(prev, now):
+            snap[store][str(act["id"])] = prev
+            act["_reused"] = True
+            reused += 1
+
+    to_open = [a for a in activities if not a.get("_reused") and (a["kind"] in ("assign", "quiz")
+               or (a["kind"] == "forum" and ANNOUNCEMENT_FORUM.search(a["name"])))]
+    log(f"    {len(activities)} activities, {len(to_open)} pages to open"
+        + (f" ({reused} closed ones reused)" if reused else ""))
     opened = 0
     for act in activities:
+        if act.pop("_reused", False):
+            snap["activities"][str(act["id"])] = act
+            continue
         snap["activities"][str(act["id"])] = act
         if act in to_open:
             opened += 1

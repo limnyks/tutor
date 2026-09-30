@@ -255,3 +255,31 @@ def test_existing_garbled_file_names_are_repaired_without_download(cfg):
     fixed = read_json(cfg.manifest_path, {})
     assert "901:Лекція.pdf" in fixed and Path(fixed["901:Лекція.pdf"]["path"]).name == "Лекція.pdf"
     assert Path(fixed["901:Лекція.pdf"]["path"]).exists() and not bad_path.exists()
+
+
+def test_assignments_closed_long_ago_are_not_reopened(cfg, monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from tutor.moodle import sync
+
+    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    snap = read_json(cfg.snapshot_path, None)
+    due = datetime.fromisoformat(snap["assignments"]["903"]["dates"]["due"]["iso"])
+
+    opened = []
+    original = FakeSession.get_html
+    FakeSession.get_html = lambda self, u, wait_for=None: opened.append(u.replace(BASE, "")) or original(self, u, wait_for)
+    try:
+        # 20 days after the deadline: the page is reused, the grade report is still read.
+        monkeypatch.setattr(sync, "datetime", _FrozenDatetime(due + timedelta(days=20)))
+        run_sync(cfg, download=False, log=lambda _: None, session_cls=FakeSession)
+        assert "/mod/assign/view.php?id=903" not in opened
+        assert "/grade/report/user/index.php?id=57" in opened
+        assert read_json(cfg.snapshot_path, None)["assignments"]["903"]["name"] == "Homework 1"
+
+        # 3 days after: still opened (late submissions, grading in progress).
+        opened.clear()
+        monkeypatch.setattr(sync, "datetime", _FrozenDatetime(due + timedelta(days=3)))
+        run_sync(cfg, download=False, log=lambda _: None, session_cls=FakeSession)
+        assert "/mod/assign/view.php?id=903" in opened
+    finally:
+        FakeSession.get_html = original
