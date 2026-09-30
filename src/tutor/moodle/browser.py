@@ -9,6 +9,7 @@ reports LoginRequired.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -51,6 +52,7 @@ def open_login_window(cfg: Config) -> None:
     Plain Chrome, because Google refuses sign-in from browsers under automation.
     """
     cfg.profile_dir.mkdir(parents=True, exist_ok=True)
+    keep_session_cookies(cfg.profile_dir)
     chrome = chrome_path()
     login_url = cfg.url("/login/index.php")
     if chrome:
@@ -73,6 +75,23 @@ def open_login_window(cfg: Config) -> None:
         ctx.close()
 
 
+def keep_session_cookies(profile_dir: Path) -> None:
+    """Set 'Continue where you left off' in the profile.
+
+    Chrome otherwise drops session cookies (Moodle's login is one) when it quits.
+    """
+    prefs_path = profile_dir / "Default" / "Preferences"
+    prefs = {}
+    if prefs_path.exists():
+        try:
+            prefs = json.loads(prefs_path.read_text())
+        except ValueError:
+            prefs = {}
+    prefs.setdefault("session", {})["restore_on_startup"] = 1
+    prefs_path.parent.mkdir(parents=True, exist_ok=True)
+    prefs_path.write_text(json.dumps(prefs))
+
+
 def _filename(headers: dict, url: str) -> str:
     disposition = headers.get("content-disposition", "")
     if disposition:
@@ -87,9 +106,10 @@ def _filename(headers: dict, url: str) -> str:
 class MoodleSession:
     """Context manager around a headless Chrome using the saved profile."""
 
-    def __init__(self, cfg: Config, headless: bool = True):
+    def __init__(self, cfg: Config, headless: bool | None = None):
         self.cfg = cfg
-        self.headless = headless
+        # TUTOR_SHOW=1 shows the browser window, to watch what it does.
+        self.headless = headless if headless is not None else os.environ.get("TUTOR_SHOW") != "1"
         self._reauth_tried = False
 
     # -- lifecycle ----------------------------------------------------------
@@ -104,7 +124,9 @@ class MoodleSession:
             headless=self.headless,
             accept_downloads=True,
             args=["--disable-blink-features=AutomationControlled"],
-            ignore_default_args=["--enable-automation"],
+            # Playwright's defaults swap in a fake keychain, which can't decrypt the cookies
+            # real Chrome saved at login, so the session would look logged out.
+            ignore_default_args=["--enable-automation", "--use-mock-keychain", "--password-store=basic"],
         )
         if os.environ.get("TUTOR_CHROME"):
             kwargs["executable_path"] = os.environ["TUTOR_CHROME"]
@@ -186,7 +208,19 @@ class MoodleSession:
                 timeout=30_000,
             )
         except Exception as exc:
-            raise LoginRequired("Google needs you to sign in again (password or 2FA).") from exc
+            raise LoginRequired(
+                f"Google needs you to sign in again (stopped at {self._where()}).") from exc
+
+    def _where(self) -> str:
+        """Where the login flow stopped, with a screenshot saved for diagnosis."""
+        shot = self.cfg.data_dir / "login-failure.png"
+        try:
+            shot.parent.mkdir(parents=True, exist_ok=True)
+            self.page.screenshot(path=str(shot))
+        except Exception:
+            pass
+        parsed = urlparse(self.page.url)
+        return f"{parsed.hostname}{parsed.path}; screenshot: {shot}"
 
     def head_final_url(self, url: str) -> str | None:
         self._pause()
