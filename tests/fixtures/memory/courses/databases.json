@@ -6,6 +6,7 @@
   "credits": 4,
   "mode": "tutor",
   "ai_policy": "AI allowed for explanations, practice questions, syntax/reference questions. FORBIDDEN: pasting assignment conditions into an AI, asking for solutions, submitting AI-generated SQL/schemas/analysis. Any AI-generated content in a submission must be disclosed with prompts.",
+  "homework_help": false,
   "assessment": [
     "Assignments 1-4: 15 points each = 6 technical correctness + 9 individual defense (2 bank questions + TA questions); skipping the defense = 0 for the whole assignment; after deadline max 7.5",
     "Intermediate test (week 7): 15",

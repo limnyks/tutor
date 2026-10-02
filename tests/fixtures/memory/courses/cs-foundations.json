@@ -6,6 +6,7 @@
   "credits": 3,
   "mode": "deadlines",
   "ai_policy": "",
+  "homework_help": false,
   "assessment": [
     "See Moodle: weekly tests (Тест N) and practical works (Практична N)"
   ],

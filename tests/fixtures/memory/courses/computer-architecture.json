@@ -6,6 +6,7 @@
   "credits": 5,
   "mode": "tutor",
   "ai_policy": "AI use must be disclosed in practice reports where it had an impact (e.g. code generation).",
+  "homework_help": true,
   "assessment": [
     "Practical works with reports (Quartus, FPGA board); exact weights not recorded yet — see Moodle"
   ],

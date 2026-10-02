@@ -159,6 +159,18 @@ def test_mcp_tools_hide_assignment_description(cfg, monkeypatch):
     assert "description" not in json.dumps(assignments)
     assert "Solve problems" not in json.dumps(assignments)
 
+    # A course whose AI policy allows homework help gets the conditions; others never do.
+    courses = cfg.home / "mem" / "courses"
+    courses.mkdir(parents=True)
+    (courses / "p.json").write_text(json.dumps({"slug": "p", "code": "STAT2100", "name": "P", "moodle_id": 57,
+                                                "credits": 4, "mode": "tutor", "homework_help": True}))
+    cfg.state_dir = cfg.home / "mem"
+    allowed = mcp_server.moodle_assignments("Probability", include_closed=True)
+    assert "Solve problems" in allowed[0]["description"]
+    (courses / "p.json").write_text(json.dumps({"slug": "p", "code": "STAT2100", "name": "P", "moodle_id": 57,
+                                                "credits": 4, "mode": "tutor"}))
+    assert "description" not in json.dumps(mcp_server.moodle_assignments("Probability", include_closed=True))
+
     contents = mcp_server.moodle_course_contents("STAT2100")
     assert "Week 1. Sample spaces" in contents["sections"]
     assert mcp_server.moodle_grades("57")["STAT2100 Probability for CS"][0]["grade"] == "9.00"

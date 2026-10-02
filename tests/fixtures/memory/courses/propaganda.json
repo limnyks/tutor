@@ -6,6 +6,7 @@
   "credits": 3,
   "mode": "deadlines",
   "ai_policy": "Final exam written in Google Docs only (AI misuse control).",
+  "homework_help": false,
   "assessment": [
     "Seminars: 7 x 7 points, best 35 count; participation mandatory",
     "Mid-term group project (3-5 people): 25",

@@ -6,6 +6,7 @@
   "credits": 6,
   "mode": "tutor",
   "ai_policy": "AI allowed as a trainer for definitions and theory. Not for graded homework, quizzes or tests. Warn: check AI math manually.",
+  "homework_help": false,
   "assessment": [
     "Quizzes: 6 x 6 points, UNANNOUNCED, ~every two weeks, 15 min, true/false per task — each week's lecture must be learned before practice",
     "Graded homework: 2 x 3 points before each midterm; missed deadline = 0",

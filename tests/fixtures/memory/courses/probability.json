@@ -6,6 +6,7 @@
   "credits": 4,
   "mode": "tutor",
   "ai_policy": "AI allowed like any online source, but any use for homework must be cited. Homework is defended in person: the student must be able to explain every step.",
+  "homework_help": true,
   "assessment": [
     "HW 1-4: 10 points each, due weeks 5, 8, 11, 14; up to 5 days late at -10%/day; defended in person",
     "Midterm (week 8, written, one handwritten A4 summary sheet allowed): 30",

@@ -1,8 +1,9 @@
 """Moodle as a Claude connector (MCP server, stdio).
 
 Answers come from the last sync (fast, no browser). `moodle_sync` and `moodle_download`
-open Moodle live. Assignment descriptions are never returned: some courses forbid putting
-assignment conditions into an AI prompt, so only titles, dates and statuses are exposed.
+open Moodle live. Assignment descriptions are returned only for courses whose AI policy allows
+help on homework (`homework_help: true` in the memory repo's course file); other courses forbid
+putting assignment conditions into an AI prompt, so only titles, dates and statuses are exposed.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -16,6 +17,15 @@ from .sync import run_download, run_sync
 
 def _cfg():
     return load_config()
+
+
+def _homework_help_ids(cfg) -> set[str]:
+    """Moodle ids of courses whose AI policy allows help on graded homework."""
+    if cfg.state_dir is None or not (cfg.state_dir / "courses").exists():
+        return set()
+    from ..memory.catalog import load_catalog
+    return {str(c.moodle_id) for c in load_catalog(cfg.state_dir).values()
+            if c.homework_help and c.moodle_id is not None}
 
 
 def _snapshot() -> dict:
@@ -103,9 +113,11 @@ def moodle_grades(course: Optional[str] = None) -> dict:
 def moodle_assignments(course: Optional[str] = None, include_closed: bool = False) -> list:
     """Assignments and quizzes: name, dates, submission and grading status, grade.
 
-    Descriptions and task conditions are deliberately not included.
+    The description (task conditions) is included only for courses whose AI policy allows help
+    on homework; there, tutor the student through it (they write the work and cite the help).
     """
     snap = _snapshot()
+    allowed = _homework_help_ids(_cfg())
     only = _find_course(snap, course)["id"] if course else None
     now = datetime.now(timezone.utc)
     out = []
@@ -129,15 +141,19 @@ def moodle_assignments(course: Optional[str] = None, include_closed: bool = Fals
                 "grade": item.get("grade"),
                 "url": item.get("url"),
             })
+            if str(item["course_id"]) in allowed and item.get("description"):
+                out[-1]["description"] = item["description"]
     return sorted(out, key=lambda i: i["due"] or "9999")
 
 
 def moodle_files(course: Optional[str] = None, query: Optional[str] = None) -> list:
     """Downloaded course files with their local paths. Filter by course and/or name fragment.
 
-    Files marked graded=true belong to graded work: do not read them into an AI prompt.
+    Files marked graded=true belong to graded work: read them only when `homework_help` is true
+    (the course's AI policy allows help on homework).
     """
     cfg = _cfg()
+    allowed = _homework_help_ids(cfg)
     manifest = read_json(cfg.manifest_path, {})
     only = _find_course(_snapshot(), course)["id"] if course else None
     q = (query or "").lower()
@@ -149,7 +165,8 @@ def moodle_files(course: Optional[str] = None, query: Optional[str] = None) -> l
             continue
         if q and q not in entry["path"].lower() and q not in entry["activity"].lower():
             continue
-        out.append({k: entry[k] for k in ("path", "activity", "section", "size", "graded", "downloaded_at")})
+        out.append({**{k: entry[k] for k in ("path", "activity", "section", "size", "graded", "downloaded_at")},
+                    "homework_help": str(entry["course_id"]) in allowed})
     return sorted(out, key=lambda e: e["path"])
 
 

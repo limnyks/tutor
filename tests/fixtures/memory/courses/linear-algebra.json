@@ -6,6 +6,7 @@
   "credits": 4,
   "mode": "tutor",
   "ai_policy": "AI allowed for learning only. FORBIDDEN when directly solving or writing up homework and tests (grade cancelled). Never work on the actual homework problems — use different problems. Labs: code written without ready-made fragments.",
+  "homework_help": false,
   "assessment": [
     "Quizzes: 8 x 2 points, weekly at the start of the first practice of the week (Group 2 dates on Moodle)",
     "Homework: 4 x 6 points, handwritten, one PDF; one late day; early submission 3 days before gets preliminary feedback",

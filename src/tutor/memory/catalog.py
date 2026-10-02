@@ -25,6 +25,8 @@ class Course:
     credits: int
     mode: str  # "tutor": lessons and knowledge tracking; "deadlines": tracked, not tutored
     ai_policy: str = ""
+    # True only when the course's AI policy allows AI help on graded homework (tutoring, not writing it).
+    homework_help: bool = False
     assessment: list[str] = field(default_factory=list)
     notes: str = ""
     topics: list[Topic] = field(default_factory=list)
