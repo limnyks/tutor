@@ -50,12 +50,17 @@ def _norm(text: str) -> str:
     return re.sub(r"[\s_\-]+", " ", text.lower()).strip()
 
 
+_TOPIC_FIELDS = set(Topic.__dataclass_fields__)
+_COURSE_FIELDS = set(Course.__dataclass_fields__) - {"topics"}
+
+
 def load_catalog(memory_dir: Path) -> dict[str, Course]:
     courses = {}
     for path in sorted((memory_dir / "courses").glob("*.json")):
         raw = json.loads(path.read_text())
-        topics = [Topic(**t) for t in raw.pop("topics", [])]
-        course = Course(**raw, topics=topics)
+        # Unknown keys are ignored, so a newer course file never breaks an older connector.
+        topics = [Topic(**{k: v for k, v in t.items() if k in _TOPIC_FIELDS}) for t in raw.pop("topics", [])]
+        course = Course(**{k: v for k, v in raw.items() if k in _COURSE_FIELDS}, topics=topics)
         courses[course.slug] = course
     return courses
 

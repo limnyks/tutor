@@ -19,6 +19,9 @@ def _explained(fn):
             return fn(*args, **kwargs)
         except (ValueError, RuntimeError) as exc:
             raise ToolError(str(exc)) from exc
+        except Exception as exc:  # unexpected: still show what went wrong instead of a bare error
+            raise ToolError(f"{type(exc).__name__}: {exc} (restart the session; if it persists, "
+                            f"run `tutor briefing` in Terminal to see the full error)") from exc
     return wrapper
 
 

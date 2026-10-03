@@ -185,3 +185,20 @@ def test_expected_tool_errors_reach_claude_with_their_message(mem):
     from tutor.mcp_server import _explained
     with pytest.raises(ToolError, match="Use one of"):
         _explained(tools.log_answer)("STAT2100", "astrology", True)
+
+
+def test_unknown_course_fields_are_ignored(tmp_path):
+    shutil.copytree(MEMORY_REPO / "courses", tmp_path / "courses")
+    p = tmp_path / "courses" / "probability.json"
+    p.write_text(json.dumps({**json.loads(p.read_text()), "field_from_the_future": 1}))
+    assert load_catalog(tmp_path)["probability"].code == "STAT2100"
+
+
+def test_unexpected_errors_reach_claude_with_their_type(mem):
+    from mcp.server.mcpserver.exceptions import ToolError
+    from tutor.mcp_server import _explained
+
+    def broken():
+        raise TypeError("unexpected keyword argument 'x'")
+    with pytest.raises(ToolError, match="TypeError: unexpected keyword"):
+        _explained(broken)()
