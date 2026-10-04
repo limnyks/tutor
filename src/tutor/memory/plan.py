@@ -28,8 +28,9 @@ DEFAULT_SETTINGS = {
     # When study may be planned, per weekday.
     "window": {"mon": "09:00-22:00", "tue": "09:00-22:00", "wed": "09:00-22:00", "thu": "09:00-22:00",
                "fri": "09:00-22:00", "sat": "10:00-21:00", "sun": "10:00-20:00"},
-    # Most study minutes planned per day (lessons + deadline work + Sunday blocks).
+    # Most study minutes planned per day (lessons + deadline work + Sunday blocks); null = no limit.
     "max_minutes": {"mon": 240, "tue": 240, "wed": 240, "thu": 240, "fri": 240, "sat": 300, "sun": 240},
+    "break_minutes": 15,          # between two blocks
     "lesson_minutes": 120,
     # Most different subjects (courses) in one day; fewer, longer blocks.
     "max_courses_per_day": 3,
@@ -81,6 +82,7 @@ class Day:
     budget: int
     blocks: list[Block] = field(default_factory=list)
     classes: set[str] = field(default_factory=set)   # course codes with a class that day
+    break_minutes: int = 0                              # kept free after each block
 
     def take(self, minutes: int, not_after: datetime | None = None, min_minutes: int = 30) -> tuple[datetime, datetime] | None:
         """Reserve the earliest free stretch of up to `minutes` (at least min_minutes)."""
@@ -95,7 +97,7 @@ class Day:
                 continue
             got = min(want, length)
             end = a + timedelta(minutes=got)
-            self.free[i] = (end, self.free[i][1])
+            self.free[i] = (min(end + timedelta(minutes=self.break_minutes), self.free[i][1]), self.free[i][1])
             self.budget -= got
             return a, end
         return None
@@ -133,7 +135,8 @@ def _free_days(start: date, days: int, now: datetime, busy: list[tuple[datetime,
             nxt = now.astimezone(KYIV) + timedelta(minutes=15 - now.astimezone(KYIV).minute % 15)
             a = max(a, nxt.replace(second=0, microsecond=0))
         free = [(a, b)] if a < b else []
-        day = Day(d, free, s["max_minutes"][wd])
+        cap = (s["max_minutes"] or {}).get(wd)
+        day = Day(d, free, 24 * 60 if cap is None else cap, break_minutes=s["break_minutes"])
         for c in timetable:
             if c.get("day") == wd:
                 cs, ce = datetime.combine(d, _hm(c["start"]), KYIV), datetime.combine(d, _hm(c["end"]), KYIV)

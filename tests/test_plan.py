@@ -200,3 +200,12 @@ def test_subject_limit_gives_way_only_to_a_deadline(mem):
                  (4219, "Lab 1", "2026-10-06T20:00:00+03:00", "No submissions have been made yet"))
     plan = _plan(mem, snap, days=2)
     assert any("more than 1 subjects" in w for w in plan["warnings"])
+
+
+def test_no_daily_limit_and_breaks_between_blocks(mem):
+    (mem / "plan").mkdir()
+    (mem / "plan" / "settings.json").write_text(json.dumps({"max_minutes": None, "lesson_minutes": 180}))
+    blocks = _plan(mem, days=1)["blocks"]
+    assert sum(b["minutes"] for b in blocks) > 300
+    spans = [(datetime.fromisoformat(b["start"]), datetime.fromisoformat(b["end"])) for b in blocks]
+    assert all(b[0] - a[1] >= timedelta(minutes=15) for a, b in zip(spans, spans[1:]))
