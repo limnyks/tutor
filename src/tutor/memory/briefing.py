@@ -55,8 +55,11 @@ def build_briefing(cfg: Config, now: datetime | None = None) -> str:
     today = now.astimezone(KYIV).date()
     out = [f"# Tutor briefing, {now.astimezone(KYIV):%A %d %B %Y, %H:%M} (Kyiv)", ""]
 
-    # Moodle freshness
+    # Moodle freshness (in the cloud there is no local status: use the published snapshot's time)
+    snap = load_snapshot(cfg)
     status = json.loads(cfg.status_path.read_text()) if cfg.status_path.exists() else {}
+    if not status and snap and snap.get("synced_at"):
+        status = {"result": "ok", "last_success": snap["synced_at"]}
     last = parse_iso(status.get("last_success"))
     if status.get("result") == "login_required":
         out.append("**Moodle login needed** — ask the student to run `tutor moodle-login`.")
@@ -69,7 +72,6 @@ def build_briefing(cfg: Config, now: datetime | None = None) -> str:
     out.append("")
 
     # Deadlines
-    snap = load_snapshot(cfg)
     out.append("## Deadlines (next 10 days, plus unsubmitted overdue)")
     items = upcoming_deadlines(snap, now, days=10) if snap else []
     if not items:

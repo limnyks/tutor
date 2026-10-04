@@ -7,6 +7,7 @@ import json
 import sys
 from collections import Counter
 from datetime import datetime, timezone
+from pathlib import Path
 
 from .moodle import schedule
 from .moodle.browser import LoginRequired, MoodleSession, open_login_window
@@ -263,11 +264,15 @@ def cmd_tutor_mcp(args) -> int:
 def cmd_plan(args) -> int:
     from .memory import tools
 
+    busy = json.loads(Path(args.busy).read_text()) if args.busy else []
     try:
-        plan = tools.plan_week([], start=args.start, days=args.days)
+        plan = tools.plan_week(busy, start=args.start, days=args.days)
     except (RuntimeError, ValueError) as exc:
         print(exc)
         return 1
+    if args.json:
+        print(json.dumps(plan, ensure_ascii=False, indent=1))
+        return 0
     last = None
     for b in plan["blocks"]:
         day = b["start"][:10]
@@ -277,7 +282,15 @@ def cmd_plan(args) -> int:
         print(f"  {b['start'][11:16]}–{b['end'][11:16]}  {b['title']}  {b['details']}")
     for w in plan["warnings"]:
         print(f"! {w}")
-    print("\n(Calendar events are not read here; in Claude the plan also avoids them.)")
+    if not args.busy:
+        print("\n(Calendar events are not read here; in Claude the plan also avoids them.)")
+    return 0
+
+
+def cmd_plan_save(args) -> int:
+    from .memory import tools
+
+    print(tools.plan_save(json.loads(Path(args.file).read_text())))
     return 0
 
 
@@ -322,7 +335,12 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("plan", help="print a study plan draft (without calendar events)")
     p.add_argument("--start", help="YYYY-MM-DD (default today)")
     p.add_argument("--days", type=int)
+    p.add_argument("--busy", help="JSON file: [{start, end, course?}] busy time from the calendar")
+    p.add_argument("--json", action="store_true", help="print the plan as JSON")
     p.set_defaults(func=cmd_plan)
+    p = sub.add_parser("plan-save", help="record the plan written to the calendar (JSON file of blocks)")
+    p.add_argument("file")
+    p.set_defaults(func=cmd_plan_save)
     sub.add_parser("notify-test", help="send a test macOS notification").set_defaults(func=cmd_notify_test)
     p = sub.add_parser("memory-init", help="use a tutor-memory checkout as the tutor's memory")
     p.add_argument("path", nargs="?", default="~/tutor-memory")

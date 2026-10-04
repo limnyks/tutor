@@ -151,3 +151,30 @@ def test_plan_tools_and_briefing(tmp_path, monkeypatch):
     if blocks:
         assert blocks[0]["title"] in text
     assert tools.log_study("CS310", [], 60, assignment="Assignment 1").endswith("Assignment 1")
+
+
+def test_cli_plan_with_busy_file_and_save(tmp_path, monkeypatch, capsys):
+    from tutor import cli
+    shutil.copytree(MEMORY_REPO / "courses", tmp_path / "m" / "courses")
+    cfg = Config(home=tmp_path / "h", files_dir=tmp_path / "f", state_dir=tmp_path / "m")
+    monkeypatch.setattr(tools, "load_config", lambda: cfg)
+    day = date(2026, 10, 12)
+    busy = tmp_path / "busy.json"
+    busy.write_text(json.dumps([{"start": _at(day, "09:00").isoformat(), "end": _at(day, "21:00").isoformat()}]))
+    assert cli.main(["plan", "--busy", str(busy), "--json", "--start", day.isoformat(), "--days", "1"]) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert all(b["start"] >= _at(day, "21:15").isoformat() for b in plan["blocks"])
+    blocks = tmp_path / "blocks.json"
+    blocks.write_text(json.dumps([{**b, "event_id": "e"} for b in plan["blocks"]]))
+    assert cli.main(["plan-save", str(blocks)]) == 0
+    assert "plan saved" in capsys.readouterr().out
+
+
+def test_briefing_in_the_cloud_uses_the_published_snapshot_time(tmp_path):
+    shutil.copytree(MEMORY_REPO / "courses", tmp_path / "m" / "courses")
+    (tmp_path / "m" / "moodle").mkdir()
+    synced = datetime.now(timezone.utc) - timedelta(hours=3)
+    (tmp_path / "m" / "moodle" / "snapshot.json").write_text(json.dumps(
+        {"synced_at": synced.isoformat(), "courses": {}, "assignments": {}, "quizzes": {}, "deadlines": {}}))
+    text = build_briefing(Config(home=tmp_path / "h", state_dir=tmp_path / "m"))
+    assert "Moodle data from" in text and "not been synced" not in text
