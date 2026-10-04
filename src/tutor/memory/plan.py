@@ -278,7 +278,9 @@ def make_plan(memory_dir: Path, catalog: dict[str, Course], log: list[dict], sna
                     continue
                 for _ in range(per_day):
                     chunk = min(need, s["lesson_minutes"])
-                    slot = day.take(chunk, not_after=finish_by, min_minutes=min(min_block, chunk))
+                    # Long blocks: no scraps shorter than half a block, unless the deadline needs them.
+                    floor = min_block if not capped else max(min_block, s["lesson_minutes"] // 2)
+                    slot = day.take(chunk, not_after=finish_by, min_minutes=min(floor, chunk))
                     if slot is None:
                         break
                     need -= int((slot[1] - slot[0]).total_seconds() // 60)
@@ -316,7 +318,7 @@ def make_plan(memory_dir: Path, catalog: dict[str, Course], log: list[dict], sna
                 continue
             if len({u for u in used if u}) >= s["max_courses_per_day"]:
                 break
-            slot = day.take(s["lesson_minutes"], min_minutes=max(min_block, 45))
+            slot = day.take(s["lesson_minutes"], min_minutes=max(min_block, 45, s["lesson_minutes"] // 2))
             if slot is None:
                 break
             _, topics, why = needs[c.code]
