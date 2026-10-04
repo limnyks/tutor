@@ -178,3 +178,25 @@ def test_briefing_in_the_cloud_uses_the_published_snapshot_time(tmp_path):
         {"synced_at": synced.isoformat(), "courses": {}, "assignments": {}, "quizzes": {}, "deadlines": {}}))
     text = build_briefing(Config(home=tmp_path / "h", state_dir=tmp_path / "m"))
     assert "Moodle data from" in text and "not been synced" not in text
+
+
+def test_at_most_three_subjects_a_day(mem):
+    snap = _snap((4429, "Assignment 1", "2026-10-09T00:00:00+03:00", "No submissions have been made yet"),
+                 (4219, "Lab 1", "2026-10-09T23:59:00+03:00", "No submissions have been made yet"),
+                 (4410, "Essay", "2026-10-09T23:59:00+03:00", "No submissions have been made yet"))
+    plan = _plan(mem, snap)
+    by_day = {}
+    for b in plan["blocks"]:
+        if b["course"]:
+            by_day.setdefault(b["start"][:10], set()).add(b["course"])
+    assert by_day and all(len(c) <= 3 for c in by_day.values())
+    assert not any("more than 3 subjects" in w for w in plan["warnings"])
+
+
+def test_subject_limit_gives_way_only_to_a_deadline(mem):
+    (mem / "plan").mkdir()
+    (mem / "plan" / "settings.json").write_text(json.dumps({"max_courses_per_day": 1}))
+    snap = _snap((4429, "Assignment 1", "2026-10-06T20:00:00+03:00", "No submissions have been made yet"),
+                 (4219, "Lab 1", "2026-10-06T20:00:00+03:00", "No submissions have been made yet"))
+    plan = _plan(mem, snap, days=2)
+    assert any("more than 1 subjects" in w for w in plan["warnings"])

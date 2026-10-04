@@ -30,7 +30,9 @@ DEFAULT_SETTINGS = {
                "fri": "09:00-22:00", "sat": "10:00-21:00", "sun": "10:00-20:00"},
     # Most study minutes planned per day (lessons + deadline work + Sunday blocks).
     "max_minutes": {"mon": 240, "tue": 240, "wed": 240, "thu": 240, "fri": 240, "sat": 300, "sun": 240},
-    "lesson_minutes": 90,
+    "lesson_minutes": 120,
+    # Most different subjects (courses) in one day; fewer, longer blocks.
+    "max_courses_per_day": 3,
     "min_block_minutes": 30,
     "gap_minutes": 15,            # kept free around busy time and between blocks
     "finish_before_due_hours": 24,
@@ -262,11 +264,18 @@ def make_plan(memory_dir: Path, catalog: dict[str, Course], log: list[dict], sna
             # Due after this plan: do this plan's fair share now, the rest in the next one.
             share = need * (plan_end - now) / (finish_by - now)
             need = min(need, max(min_block, int(-(-share // 15) * 15)))
-        # First one block a day (spread out), then any free time left before the deadline.
-        for per_day in (1, 99):
+        # One block a day (spread out), then any free time before the deadline, within the daily
+        # subject limit; only work that would otherwise miss its deadline may break the limit.
+        cap = s["max_courses_per_day"]
+        for per_day, capped in ((1, True), (99, True), (99, False)):
+            if not capped and finish_by > plan_end:
+                break
             for day in plan_days:
                 if need <= 0 or datetime.combine(day.day, time(0), KYIV) >= finish_by:
                     break
+                courses = {b.course for b in day.blocks if b.course}
+                if capped and c.code not in courses and len(courses) >= cap:
+                    continue
                 for _ in range(per_day):
                     chunk = min(need, s["lesson_minutes"])
                     slot = day.take(chunk, not_after=finish_by, min_minutes=min(min_block, chunk))
@@ -277,6 +286,10 @@ def make_plan(memory_dir: Path, catalog: dict[str, Course], log: list[dict], sna
                     day.blocks.append(Block(*slot, "deadline", c.code, f"{c.code}: {task['name']}",
                                             f"Your own work. Due {due_txt}." + (" OVERDUE." if task["overdue"] else ""),
                                             f"Moodle deadline {due_txt}"))
+                    if not capped and c.code not in courses and len(courses) >= cap:
+                        warnings.append(f"{day.day:%a %d %b}: more than {cap} subjects, because "
+                                        f"{c.code} {task['name']} would otherwise miss its deadline.")
+                        courses.add(c.code)
                     if need <= 0:
                         break
             if need <= 0 or finish_by > plan_end:
@@ -301,6 +314,8 @@ def make_plan(memory_dir: Path, catalog: dict[str, Course], log: list[dict], sna
         for c in order:
             if c.code in used:
                 continue
+            if len({u for u in used if u}) >= s["max_courses_per_day"]:
+                break
             slot = day.take(s["lesson_minutes"], min_minutes=max(min_block, 45))
             if slot is None:
                 break
@@ -309,7 +324,12 @@ def make_plan(memory_dir: Path, catalog: dict[str, Course], log: list[dict], sna
             used.add(c.code)
             planned[c.code] += 1
 
-    blocks = sorted((b for d in plan_days for b in d.blocks), key=lambda b: b.start)
+    blocks = []
+    for b in sorted((b for d in plan_days for b in d.blocks), key=lambda b: b.start):
+        if blocks and blocks[-1].title == b.title and blocks[-1].end == b.start:
+            blocks[-1].end = b.end  # back-to-back pieces of the same work: one block
+        else:
+            blocks.append(b)
     per_course: dict[str, int] = {}
     for b in blocks:
         if b.course:
