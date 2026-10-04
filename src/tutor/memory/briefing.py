@@ -74,6 +74,8 @@ def build_briefing(cfg: Config, now: datetime | None = None) -> str:
     # Deadlines
     out.append("## Deadlines (next 10 days, plus unsubmitted overdue)")
     items = upcoming_deadlines(snap, now, days=10) if snap else []
+    known = {str(c.moodle_id) for c in catalog.values() if c.moodle_id is not None}
+    items = [d for d in items if str(d.get("course_id")) in known]  # ignored courses stay out
     if not items:
         out.append("- none found" if snap else "- no Moodle data yet")
     for d in items[:15]:

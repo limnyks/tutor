@@ -184,6 +184,12 @@ def _work_done(log: list[dict]) -> dict[str, int]:
     return out
 
 
+def _short(title: str, limit: int = 45) -> str:
+    """'Linear operators, matrix of an operator, kernel…' -> its first part, for calendar text."""
+    first = title.split(",")[0].split(":")[0].strip()
+    return first if len(first) <= limit else first[:limit - 1] + "…"
+
+
 def _course_need(course: Course, log: list[dict], today: date, week: int, weight: float) -> tuple[float, str, str]:
     """(priority, topics for the lesson, why) for one tutored course."""
     states = build(course, log)
@@ -193,15 +199,16 @@ def _course_need(course: Course, log: list[dict], today: date, week: int, weight
     nxt = behind[0] if behind else next((t for t in course.topics if not states[t.id].answers), None)
     parts, why = [], []
     if due:
-        parts.append("review: " + ", ".join(s.title for s in due[:3]))
+        names = [_short(s.title) for s in due[:2]]
+        parts.append("review: " + "; ".join(names) + (f" (+{len(due) - 2} more)" if len(due) > 2 else ""))
         why.append(f"{len(due)} review(s) due")
     if unchecked:
         why.append(f"{len(unchecked)} studied topic(s) not checked yet")
     if len(behind) > 2:
         # Nothing recorded yet for most of the course so far: find out what is known first.
-        parts.append(f"diagnostic: short questions on weeks 1–{week} topics, then teach from the first gap")
+        parts.append(f"diagnostic on weeks 1–{week}, then teach from the first gap")
     elif nxt:
-        parts.append(f"learn: {nxt.title}")
+        parts.append(f"learn: {_short(nxt.title, 60)}")
     if behind:
         why.append(f"{len(behind)} topic(s) up to week {week} with no answers yet")
     priority = weight * (1 + 0.5 * len(due) + 0.3 * len(unchecked) + 0.4 * min(len(behind), 6))
