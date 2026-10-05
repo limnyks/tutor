@@ -49,12 +49,18 @@ def sync(memory_dir: Path, message: str = "tutor: update memory") -> str:
         if not _git(memory_dir, "remote").stdout.strip():
             return "committed locally (no remote)" if staged else "nothing to sync (no remote)"
         has_upstream = _git(memory_dir, "rev-parse", "--abbrev-ref", "@{u}").returncode == 0
-        if has_upstream:
-            pulled = _git(memory_dir, "pull", "-q", "--rebase", "--autostash")
+        # Memory lives on main. A checkout on another branch (cloud sessions start on their own
+        # branch) still syncs with main, so the Mac and the cloud see each other's events.
+        on_main_remote = not has_upstream and _git(memory_dir, "ls-remote", "--exit-code", "--heads",
+                                                   "origin", "main").returncode == 0
+        if has_upstream or on_main_remote:
+            pull = ["pull", "-q", "--rebase", "--autostash"] + (["origin", "main"] if on_main_remote else [])
+            pulled = _git(memory_dir, *pull)
             if pulled.returncode != 0:
                 _git(memory_dir, "rebase", "--abort")
                 return f"pull failed, kept local copy: {pulled.stderr.strip()[:200]}"
-        pushed = _git(memory_dir, "push", "-q", "-u", "origin", "HEAD")
+        target = "HEAD:main" if on_main_remote else "HEAD"
+        pushed = _git(memory_dir, "push", "-q", "-u", "origin", target)
         if pushed.returncode != 0:
             return f"push failed, kept local copy: {pushed.stderr.strip()[:200]}"
         return "synced with GitHub"

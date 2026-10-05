@@ -202,3 +202,19 @@ def test_unexpected_errors_reach_claude_with_their_type(mem):
         raise TypeError("unexpected keyword argument 'x'")
     with pytest.raises(ToolError, match="TypeError: unexpected keyword"):
         _explained(broken)()
+
+
+def test_checkout_on_another_branch_still_syncs_with_main(tmp_path, monkeypatch):
+    remote = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", str(remote)], check=True)
+    mac, cloud = tmp_path / "mac", tmp_path / "cloud"
+    subprocess.run(["git", "clone", "-q", str(remote), str(mac)], check=True, capture_output=True)
+    shutil.copytree(MEMORY_REPO / "courses", mac / "courses")
+    assert sync(mac, "init") == "synced with GitHub"
+    subprocess.run(["git", "clone", "-q", str(remote), str(cloud)], check=True, capture_output=True)
+    _git(cloud, "checkout", "-q", "-b", "claude/some-session")
+    monkeypatch.setattr(event_log, "writer_name", lambda: "tutor-cloud")
+    event_log.append(cloud, "study", {"topics": ["bayes"]}, "probability")
+    assert sync(cloud, "cloud") == "synced with GitHub"
+    assert sync(mac, "mac") == "synced with GitHub"
+    assert [e["type"] for e in event_log.read_all(mac)] == ["study"]
