@@ -6,6 +6,7 @@ help on homework (`homework_help: true` in the memory repo's course file); other
 putting assignment conditions into an AI prompt, so only titles, dates and statuses are exposed.
 """
 
+import sys
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -28,11 +29,32 @@ def _homework_help_ids(cfg) -> set[str]:
             if c.homework_help and c.moodle_id is not None}
 
 
+def _on_mac(cfg) -> bool:
+    """Moodle can be read live only where the login lives (the Mac's Chrome profile)."""
+    return cfg.profile_dir.exists() or sys.platform == "darwin"
+
+
+def _published(cfg, name: str):
+    """The Mac's copy in the memory repo (what the cloud sees)."""
+    return cfg.state_dir / "moodle" / name if cfg.state_dir else None
+
+
 def _snapshot() -> dict:
-    snap = read_json(_cfg().snapshot_path, None)
+    cfg = _cfg()
+    snap = read_json(cfg.snapshot_path, None)
+    if not snap and _published(cfg, "snapshot.json"):
+        snap = read_json(_published(cfg, "snapshot.json"), None)  # cloud: the Mac's last sync
     if not snap:
-        raise RuntimeError("No Moodle data yet. Run moodle_sync (or `tutor moodle-sync`) first.")
+        raise RuntimeError("No Moodle data yet. On the Mac: `tutor moodle-sync`.")
     return snap
+
+
+def _not_here(cfg) -> dict:
+    snap = read_json(_published(cfg, "snapshot.json"), {}) if _published(cfg, "snapshot.json") else {}
+    return {"result": "not_on_mac",
+            "message": "Moodle can only be read from the Mac, where the login is. Do not ask for "
+                       "Moodle credentials here. Data available is from the Mac's last sync"
+                       + (f" at {snap['synced_at']}." if snap.get("synced_at") else ".")}
 
 
 def _find_course(snap: dict, query: str) -> dict:
@@ -59,6 +81,9 @@ def moodle_status() -> dict:
     """When Moodle was last synced, whether the login still works, and errors from the last run."""
     cfg = _cfg()
     status = read_json(cfg.status_path, {})
+    if not status and not _on_mac(cfg):
+        snap = read_json(_published(cfg, "snapshot.json"), {}) if _published(cfg, "snapshot.json") else {}
+        status = {"result": "cloud: data from the Mac's last sync", "last_success": snap.get("synced_at")}
     last = _parse_iso(status.get("last_success"))
     status["hours_since_success"] = (
         round((datetime.now(timezone.utc) - last).total_seconds() / 3600, 1) if last else None
@@ -153,6 +178,8 @@ def moodle_files(course: Optional[str] = None, query: Optional[str] = None) -> l
     (the course's AI policy allows help on homework).
     """
     cfg = _cfg()
+    if not cfg.manifest_path.exists() and not _on_mac(cfg):
+        raise RuntimeError("Course files are only on the Mac (~/Tutor/Moodle); not available in the cloud.")
     allowed = _homework_help_ids(cfg)
     manifest = read_json(cfg.manifest_path, {})
     only = _find_course(_snapshot(), course)["id"] if course else None
@@ -173,11 +200,19 @@ def moodle_files(course: Optional[str] = None, query: Optional[str] = None) -> l
 def moodle_changes(since_hours: int = 72) -> list:
     """What changed on Moodle recently: new activities, files, grades, feedback, deadlines, announcements."""
     cutoff = datetime.now(timezone.utc) - timedelta(hours=since_hours)
-    return [e for e in read_events(_cfg()) if (_parse_iso(e["ts"]) or cutoff) >= cutoff]
+    cfg = _cfg()
+    events = read_events(cfg)
+    if not events and cfg.state_dir:  # cloud: the Mac mirrors its Moodle events into the memory repo
+        from ..memory.events import read_all
+        from ..memory.events import MEMORY_TYPES
+        events = [e for e in read_all(cfg.state_dir) if e.get("type") not in MEMORY_TYPES]
+    return [e for e in events if (_parse_iso(e.get("ts")) or cutoff) >= cutoff]
 
 
 def moodle_sync(download: bool = True) -> dict:
-    """Read Moodle live now (all courses) and download new files. Takes a few minutes."""
+    """Read Moodle live now (all courses) and download new files. Takes a few minutes. Mac only."""
+    if not _on_mac(_cfg()):
+        return _not_here(_cfg())
     try:
         return run_sync(_cfg(), download=download, log=lambda _: None)
     except LoginRequired as exc:
@@ -185,7 +220,9 @@ def moodle_sync(download: bool = True) -> dict:
 
 
 def moodle_download(course: str) -> dict:
-    """Download new or changed files for one course right now."""
+    """Download new or changed files for one course right now. Mac only."""
+    if not _on_mac(_cfg()):
+        return _not_here(_cfg())
     c = _find_course(_snapshot(), course)
     try:
         events = run_download(_cfg(), c["id"], log=lambda _: None)

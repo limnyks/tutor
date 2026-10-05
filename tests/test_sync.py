@@ -1,6 +1,7 @@
 """Sync, diff and download logic, run against saved pages through a fake browser session."""
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -437,3 +438,24 @@ def test_sync_publishes_to_memory_repo_and_commits(cfg, tmp_path):
     assert any(line.startswith("Memory: committed locally") for line in logged)
     status = subprocess.run(["git", "-C", str(memory), "status", "--porcelain"], capture_output=True, text=True)
     assert status.stdout == ""
+
+
+def test_moodle_tools_in_the_cloud_use_the_published_copy(cfg, monkeypatch, tmp_path):
+    from tutor.memory.gitsync import publish_snapshot
+    from tutor.moodle import mcp_server
+
+    run_sync(cfg, log=lambda _: None, session_cls=FakeSession)
+    mem = tmp_path / "mem"
+    publish_snapshot(read_json(cfg.snapshot_path, {}), mem)
+    (mem / "events").mkdir()
+    (mem / "events" / "x.mac-moodle.jsonl").write_text(json.dumps(
+        {"id": "1", "ts": datetime.now(timezone.utc).isoformat(), "type": "new_grade", "data": {}}) + "\n")
+    cloud = Config(home=tmp_path / "cloud-home", files_dir=tmp_path / "nofiles", state_dir=mem)
+    monkeypatch.setattr(mcp_server, "_cfg", lambda: cloud)
+
+    assert mcp_server.moodle_courses()
+    assert mcp_server.moodle_status()["last_success"]
+    assert [e["type"] for e in mcp_server.moodle_changes()] == ["new_grade"]
+    assert mcp_server.moodle_sync()["result"] == "not_on_mac"
+    with pytest.raises(RuntimeError, match="only on the Mac"):
+        mcp_server.moodle_files()
