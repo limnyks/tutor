@@ -6,6 +6,7 @@ Built from the memory repo (events, courses) and the last Moodle snapshot. Facts
 from __future__ import annotations
 
 import json
+import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -57,7 +58,9 @@ def build_briefing(cfg: Config, now: datetime | None = None) -> str:
 
     # Moodle freshness (in the cloud there is no local status: use the published snapshot's time)
     snap = load_snapshot(cfg)
-    status = json.loads(cfg.status_path.read_text()) if cfg.status_path.exists() else {}
+    on_mac = cfg.profile_dir.exists() or sys.platform == "darwin"
+    # Off the Mac a local status only records failed attempts (no login there): ignore it.
+    status = json.loads(cfg.status_path.read_text()) if on_mac and cfg.status_path.exists() else {}
     if not status and snap and snap.get("synced_at"):
         status = {"result": "ok", "last_success": snap["synced_at"]}
     last = parse_iso(status.get("last_success"))

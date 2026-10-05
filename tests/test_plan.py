@@ -209,3 +209,16 @@ def test_no_daily_limit_and_breaks_between_blocks(mem):
     assert sum(b["minutes"] for b in blocks) > 300
     spans = [(datetime.fromisoformat(b["start"]), datetime.fromisoformat(b["end"])) for b in blocks]
     assert all(b[0] - a[1] >= timedelta(minutes=15) for a, b in zip(spans, spans[1:]))
+
+
+def test_failed_cloud_sync_does_not_turn_the_briefing_into_login_needed(tmp_path):
+    shutil.copytree(MEMORY_REPO / "courses", tmp_path / "m" / "courses")
+    (tmp_path / "m" / "moodle").mkdir()
+    (tmp_path / "m" / "moodle" / "snapshot.json").write_text(json.dumps(
+        {"synced_at": datetime.now(timezone.utc).isoformat(), "courses": {}, "assignments": {}, "quizzes": {},
+         "deadlines": {}}))
+    cfg = Config(home=tmp_path / "h", state_dir=tmp_path / "m")
+    cfg.status_path.parent.mkdir(parents=True, exist_ok=True)
+    cfg.status_path.write_text(json.dumps({"result": "login_required"}))
+    text = build_briefing(cfg)
+    assert "login needed" not in text.lower() and "Moodle data from" in text

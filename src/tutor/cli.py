@@ -52,6 +52,10 @@ def cmd_sync(args) -> int:
     from .moodle.sync import run_sync
 
     cfg = load_config()
+    if not (cfg.profile_dir.exists() or sys.platform == "darwin"):
+        print("Moodle can only be read from the Mac, where the login is. Here the tutor uses the "
+              "Mac's last sync from the memory repo.")
+        return 1
     _trim_log(cfg.log_path)
     print(f"[{datetime.now():%Y-%m-%d %H:%M}] Moodle sync", flush=True)
     try:
