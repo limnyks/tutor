@@ -151,6 +151,14 @@ def build_briefing(cfg: Config, now: datetime | None = None) -> str:
                 out.append(f"  mistakes then: {'; '.join(last_sum['mistakes'])[:300]}")
         out.append("")
 
+    from .review import unfinished_lessons
+    unfinished = unfinished_lessons(log, now)
+    if unfinished:
+        names = ", ".join(catalog[c].code if c in catalog else c for c in unfinished)
+        out.append(f"**Lesson without the student's summary: {names}.** Start with that summary "
+                   f"(student writes it, you correct it, then log_summary).")
+        out.append("")
+
     untouched = [c.code for c in catalog.values() if c.mode == "tutor"
                  and not any(e.get("course") == c.slug for e in log if e.get("type") in event_log.MEMORY_TYPES)]
     if untouched:

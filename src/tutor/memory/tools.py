@@ -131,5 +131,26 @@ def memory_history(course: str, topic: Optional[str] = None, limit: int = 20) ->
     return out
 
 
+def test_plan() -> dict:
+    """What the Sunday test covers: per course, topics touched this week, reviews due and recent
+    mistakes, with the number of questions for each. Log every answer with source='test'."""
+    from ..moodle.dates import KYIV
+    from .review import weekly_test
+    _, mem, catalog = _memory()
+    return weekly_test(catalog, event_log.read_all(mem), datetime.now(KYIV).date())
+
+
+def review_period(period: str = "week") -> dict:
+    """Facts for the week review (period='week', 7 days) or month review ('month', 30 days):
+    planned vs done per course, answers and mistakes, Moodle grades as points lost or not,
+    overdue work, lessons left without a summary."""
+    from ..moodle.dates import KYIV
+    from .briefing import load_snapshot
+    from .review import review
+    cfg, mem, catalog = _memory()
+    days = 30 if period.lower().startswith("m") else 7
+    return review(catalog, event_log.read_all(mem), load_snapshot(cfg), datetime.now(KYIV).date(), days)
+
+
 ALL = [memory_briefing, memory_topics, log_answer, log_summary, log_study, memory_history,
-       plan_week, plan_save]
+       plan_week, plan_save, test_plan, review_period]

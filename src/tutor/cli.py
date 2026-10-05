@@ -298,6 +298,33 @@ def cmd_plan_save(args) -> int:
     return 0
 
 
+def cmd_stop_check(args) -> int:
+    """Claude Code Stop hook: block ending a lesson that has no summary. Never fails the session."""
+    try:
+        from .memory import events as event_log
+        from .memory.catalog import load_catalog
+        from .memory.review import stop_decision
+        cfg = load_config()
+        if cfg.state_dir is None or not (cfg.state_dir / "courses").exists():
+            return 0
+        raw = sys.stdin.read()
+        hook_input = json.loads(raw) if raw.strip() else {}
+        decision = stop_decision(hook_input, event_log.read_all(cfg.state_dir), load_catalog(cfg.state_dir),
+                                 datetime.now(timezone.utc))
+        if decision:
+            print(json.dumps(decision))
+    except Exception:
+        pass
+    return 0
+
+
+def cmd_review(args) -> int:
+    from .memory import tools
+    print(json.dumps(tools.test_plan() if args.what == "test" else tools.review_period(args.what),
+                     ensure_ascii=False, indent=1, default=str))
+    return 0
+
+
 def cmd_notify_test(args) -> int:
     from .moodle.browser import notify
 
@@ -345,6 +372,10 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("plan-save", help="record the plan written to the calendar (JSON file of blocks)")
     p.add_argument("file")
     p.set_defaults(func=cmd_plan_save)
+    sub.add_parser("stop-check", help="Claude Code Stop hook (lesson summary)").set_defaults(func=cmd_stop_check)
+    p = sub.add_parser("review", help="facts for the Sunday test or the week/month review")
+    p.add_argument("what", choices=["test", "week", "month"])
+    p.set_defaults(func=cmd_review)
     sub.add_parser("notify-test", help="send a test macOS notification").set_defaults(func=cmd_notify_test)
     p = sub.add_parser("memory-init", help="use a tutor-memory checkout as the tutor's memory")
     p.add_argument("path", nargs="?", default="~/tutor-memory")
