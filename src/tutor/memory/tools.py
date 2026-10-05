@@ -131,6 +131,52 @@ def memory_history(course: str, topic: Optional[str] = None, limit: int = 20) ->
     return out
 
 
+NOTICE_KINDS = ("deadline", "deadline_moved", "cancelled", "moved", "task", "exam", "material", "info")
+
+
+def log_notice(course: str, kind: str, title: str, details: str = "", when: str = "",
+               source: str = "slack", link: str = "") -> str:
+    """Record a study-relevant change a teacher announced outside Moodle (Slack, email).
+
+    kind: deadline | deadline_moved | cancelled (class) | moved (class/room/time) | task (new work) |
+    exam | material | info. when: ISO date-time it applies to (deadline, class), Kyiv time.
+    title: the task/class name as on Moodle when it is about a Moodle item. Facts only; no
+    copies of messages, no personal content."""
+    _, mem, catalog = _memory()
+    c = find_course(catalog, course)
+    if kind not in NOTICE_KINDS:
+        raise ValueError(f"Unknown kind '{kind}'. Use one of: {', '.join(NOTICE_KINDS)}")
+    when_iso = ""
+    if when:
+        from ..moodle.dates import KYIV
+        dt = datetime.fromisoformat(when)
+        when_iso = (dt if dt.tzinfo else dt.replace(tzinfo=KYIV)).isoformat()
+    for ev in event_log.read_all(mem):  # the same announcement is recorded once
+        d = ev.get("data", {})
+        if ev.get("type") == "notice" and ev.get("course") == c.slug and d.get("kind") == kind \
+                and d.get("title") == title[:200] and d.get("when") == when_iso:
+            return f"already recorded: {c.code} {kind}: {title}"
+    event_log.append(mem, "notice", {"kind": kind, "title": title[:200], "details": details[:500],
+                                     "when": when_iso, "source": source[:40], "link": link[:300]}, c.slug)
+    return f"recorded: {c.code} {kind}: {title}" + (f" ({when_iso})" if when_iso else "")
+
+
+def notices_scanned(until: str = "") -> str:
+    """Mark Slack/email as read up to `until` (ISO; default now), so the next scan starts there."""
+    _, mem, _ = _memory()
+    ts = until or datetime.now(timezone.utc).isoformat(timespec="seconds")
+    event_log.append(mem, "scan", {"until": ts})
+    return f"scanned until {ts}"
+
+
+def last_notice_scan() -> str:
+    """When Slack/email were last scanned (ISO), or 3 days ago if never."""
+    _, mem, _ = _memory()
+    scans = [e["data"].get("until", "") for e in event_log.read_all(mem) if e.get("type") == "scan"]
+    from datetime import timedelta
+    return max(scans) if scans else (datetime.now(timezone.utc) - timedelta(days=3)).isoformat(timespec="seconds")
+
+
 def test_plan() -> dict:
     """What the Sunday test covers: per course, topics touched this week, reviews due and recent
     mistakes, with the number of questions for each. Log every answer with source='test'."""
@@ -153,4 +199,4 @@ def review_period(period: str = "week") -> dict:
 
 
 ALL = [memory_briefing, memory_topics, log_answer, log_summary, log_study, memory_history,
-       plan_week, plan_save, test_plan, review_period]
+       plan_week, plan_save, test_plan, review_period, log_notice, notices_scanned, last_notice_scan]

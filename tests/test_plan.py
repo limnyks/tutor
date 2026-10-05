@@ -222,3 +222,31 @@ def test_failed_cloud_sync_does_not_turn_the_briefing_into_login_needed(tmp_path
     cfg.status_path.write_text(json.dumps({"result": "login_required"}))
     text = build_briefing(cfg)
     assert "login needed" not in text.lower() and "Moodle data from" in text
+
+
+def test_teacher_notices_reach_plan_and_briefing(tmp_path, monkeypatch):
+    shutil.copytree(MEMORY_REPO / "courses", tmp_path / "m" / "courses")
+    cfg = Config(home=tmp_path / "h", files_dir=tmp_path / "f", state_dir=tmp_path / "m")
+    monkeypatch.setattr(tools, "load_config", lambda: cfg)
+    soon = (datetime.now(KYIV) + timedelta(days=2)).replace(hour=23, minute=59, second=0, microsecond=0)
+    assert tools.log_notice("CS310", "deadline", "Mini-project 0", "posted in Slack only",
+                            soon.replace(tzinfo=None).isoformat(), "slack").startswith("recorded")
+    assert tools.log_notice("CS310", "deadline", "Mini-project 0", "",
+                            soon.replace(tzinfo=None).isoformat(), "slack").startswith("already")
+    plan = tools.plan_week([], days=2)
+    assert any("Mini-project 0 (announced by the teacher)" in b["title"] for b in plan["blocks"])
+    assert "From teachers outside Moodle" in build_briefing(cfg) and "Mini-project 0" in build_briefing(cfg)
+    before = tools.last_notice_scan()
+    tools.notices_scanned()
+    assert tools.last_notice_scan() > before
+    with pytest.raises(ValueError, match="Use one of"):
+        tools.log_notice("CS310", "gossip", "x")
+
+
+def test_teacher_moved_deadline_overrides_moodle(mem):
+    snap = _snap((4429, "Assignment 1", "2026-10-06T23:59:00+03:00", "No submissions have been made yet"))
+    snap["synced_at"] = "2026-10-04T00:00:00+00:00"
+    log = [{"ts": "2026-10-04T12:00:00+00:00", "type": "notice", "course": "databases",
+            "data": {"kind": "deadline_moved", "title": "Assignment 1", "when": "2026-10-10T23:59:00+03:00"}}]
+    work = [b for b in _plan(mem, snap, log=log)["blocks"] if b["kind"] == "deadline"]
+    assert work and "Due Sat 10 Oct" in work[0]["details"]

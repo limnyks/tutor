@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # Event types written by the tutor (Moodle's own events come from the connector).
-MEMORY_TYPES = {"answer", "study", "summary", "plan"}
+MEMORY_TYPES = {"answer", "study", "summary", "plan", "notice", "scan"}
 
 
 def writer_name() -> str:

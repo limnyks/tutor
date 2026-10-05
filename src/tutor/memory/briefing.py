@@ -105,6 +105,19 @@ def build_briefing(cfg: Config, now: datetime | None = None) -> str:
         out.append("No study plan yet: make one with plan_week.")
         out.append("")
 
+    # Teacher announcements outside Moodle (Slack, email), last 7 days
+    week_ago = (now - timedelta(days=7)).isoformat()
+    notices = [e for e in log if e.get("type") == "notice" and e.get("ts", "") >= week_ago]
+    if notices:
+        out.append("## From teachers outside Moodle (Slack, email; last 7 days)")
+        for e in notices[-MAX_ITEMS:]:
+            d = e["data"]
+            code = catalog[e["course"]].code if e.get("course") in catalog else e.get("course")
+            out.append(f"- {code}: {d.get('kind', '').replace('_', ' ')}: {d.get('title')}"
+                       + (f" → {_local(d['when'])}" if d.get("when") else "")
+                       + (f" — {d['details'][:150]}" if d.get("details") else "") + f" ({d.get('source')})")
+        out.append("")
+
     # Recent Moodle changes (72 h)
     cutoff = (now - timedelta(hours=72)).isoformat()
     recent = [e for e in log if e.get("ts", "") >= cutoff and e.get("type") not in event_log.MEMORY_TYPES

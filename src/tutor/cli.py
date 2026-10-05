@@ -325,6 +325,23 @@ def cmd_review(args) -> int:
     return 0
 
 
+def cmd_notice(args) -> int:
+    from .memory import tools
+
+    try:
+        if args.action == "last-scan":
+            print(tools.last_notice_scan())
+        elif args.action == "scanned":
+            print(tools.notices_scanned(args.until or ""))
+        else:  # add: a JSON file with a list of notices
+            for n in json.loads(Path(args.file).read_text()):
+                print(tools.log_notice(**n))
+    except (RuntimeError, ValueError, TypeError) as exc:
+        print(exc)
+        return 1
+    return 0
+
+
 def cmd_notify_test(args) -> int:
     from .moodle.browser import notify
 
@@ -376,6 +393,11 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("review", help="facts for the Sunday test or the week/month review")
     p.add_argument("what", choices=["test", "week", "month"])
     p.set_defaults(func=cmd_review)
+    p = sub.add_parser("notice", help="teacher announcements from Slack/email (add | last-scan | scanned)")
+    p.add_argument("action", choices=["add", "last-scan", "scanned"])
+    p.add_argument("file", nargs="?", help="add: JSON list of {course, kind, title, details?, when?, source?, link?}")
+    p.add_argument("--until")
+    p.set_defaults(func=cmd_notice)
     sub.add_parser("notify-test", help="send a test macOS notification").set_defaults(func=cmd_notify_test)
     p = sub.add_parser("memory-init", help="use a tutor-memory checkout as the tutor's memory")
     p.add_argument("path", nargs="?", default="~/tutor-memory")

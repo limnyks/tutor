@@ -154,13 +154,25 @@ def _current_week(term_start: date, today: date) -> int:
     return max(1, (today - term_start).days // 7 + 1)
 
 
+def notice_deadlines(log: list[dict], catalog: dict[str, Course]) -> dict[tuple[str, str], dict]:
+    """Deadlines teachers announced outside Moodle (Slack, email): (course code, name) -> latest notice."""
+    codes = {c.slug: c.code for c in catalog.values()}
+    out = {}
+    for ev in sorted((e for e in log if e.get("type") == "notice"), key=lambda e: e["ts"]):
+        d = ev.get("data", {})
+        if d.get("kind") in ("deadline", "deadline_moved") and d.get("when") and ev.get("course") in codes:
+            out[(codes[ev["course"]], deadline_title(d.get("title", "")).lower())] = {**d, "ts": ev["ts"]}
+    return out
+
+
 def _deadline_tasks(snap: dict | None, catalog: dict[str, Course], now: datetime, horizon_days: int,
-                    s: dict, done_minutes: dict[str, int]) -> list[dict]:
-    if not snap:
-        return []
+                    s: dict, done_minutes: dict[str, int], log: list[dict] | None = None) -> list[dict]:
+    notices = notice_deadlines(log or [], catalog)
+    by_code = {c.code: c for c in catalog.values()}
     by_moodle = {str(c.moodle_id): c for c in catalog.values() if c.moodle_id is not None}
     tasks = []
-    for d in upcoming_deadlines(snap, now, days=horizon_days + 7, overdue_days=3):
+    used = set()
+    for d in (upcoming_deadlines(snap, now, days=horizon_days + 7, overdue_days=3) if snap else []):
         status = d.get("submission_status") or ""
         if d["kind"] == "assignment" and status and not NOT_SUBMITTED.search(status):
             continue  # submitted
@@ -170,11 +182,29 @@ def _deadline_tasks(snap: dict | None, catalog: dict[str, Course], now: datetime
         efforts = s["effort_deadlines_mode"] if course.mode == "deadlines" else s["effort"]
         kind = d["kind"] if d["kind"] in ("assignment", "quiz") else "other"
         name = deadline_title(d["name"])
+        due = parse_iso(d["when"])
+        moved = notices.get((course.code, name.lower()))
+        if moved and moved["ts"] > (snap.get("synced_at") or ""):  # teacher moved it after Moodle was read
+            due = parse_iso(moved["when"]) or due
+            used.add((course.code, name.lower()))
         need = efforts[kind] - done_minutes.get(f"{course.code}:{name}".lower(), 0)
         if need <= 0:
             continue
-        tasks.append({"course": course, "name": name, "due": parse_iso(d["when"]), "kind": kind,
+        tasks.append({"course": course, "name": name, "due": due, "kind": kind,
                       "need": need, "overdue": d.get("overdue", False), "url": d.get("url")})
+        used.add((course.code, name.lower()))
+    horizon = now + timedelta(days=horizon_days + 7)
+    for (code, key), n in notices.items():
+        due = parse_iso(n["when"])
+        if (code, key) in used or code not in by_code or not due or not (now <= due <= horizon):
+            continue
+        course = by_code[code]
+        efforts = s["effort_deadlines_mode"] if course.mode == "deadlines" else s["effort"]
+        name = n.get("title") or "task"
+        need = efforts["other"] - done_minutes.get(f"{code}:{deadline_title(name)}".lower(), 0)
+        if need > 0:
+            tasks.append({"course": course, "name": f"{name} (announced by the teacher)", "due": due,
+                          "kind": "other", "need": need, "overdue": False, "url": n.get("link")})
     return sorted(tasks, key=lambda t: t["due"])
 
 
@@ -257,7 +287,7 @@ def make_plan(memory_dir: Path, catalog: dict[str, Course], log: list[dict], sna
     # 2. Deadline work, earliest due first
     buffer = timedelta(hours=s["finish_before_due_hours"])
     plan_end = datetime.combine(start + timedelta(days=days), time(0), KYIV)
-    for task in _deadline_tasks(snap, catalog, now, days, s, _work_done(log)):
+    for task in _deadline_tasks(snap, catalog, now, days, s, _work_done(log), log):
         c = task["course"]
         need = task["need"]
         finish_by = task["due"] - buffer
